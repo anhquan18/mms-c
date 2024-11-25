@@ -23,6 +23,43 @@
 #define MASK_SECOND	0x03		//最短走行用マスク値.壁情報とこの値のAND値が０（NOWALL）なら壁なし
 
 
+// turn 90 time
+#define DAIKEI_ZENSHIN (500.0)
+#define DAIKEI_END_TIME (299)
+#define ZENSHIN_MAX_SPEED (1100.0)
+
+// turn 180 time
+#define DAIKEI_45IN_END_TIME (212)
+#define DAIKEI_45OUT_END_TIME (232)
+#define DAIKEI_V90_END_TIME (429)
+#define DAIKEI_135IN_END_TIME (474)
+#define DAIKEI_135OUT_END_TIME (474)
+#define DAIKEI_OOMAWARI180_END_TIME (570)
+
+//地図の向き
+#define M_FRONT (0)		//前
+#define M_RIGHT (1)		//右
+#define M_REAR (2)			//後
+#define M_LEFT (3)			//左
+#define M_RIGHT_N (19)		//右90大回り
+#define M_LEFT_N (20)		//左90大回り
+#define M_RIGHT_F (17)		//右90大回り
+#define M_LEFT_F (18)		//左90大回り
+#define M_RIGHT45 (4)		//右45
+#define M_LEFT45 (5)		//左45
+#define M_RIGHTV90 (6)		//右V90
+#define M_LEFTV90 (7)		//左V90
+#define M_RIGHT135 (8)		//右135
+#define M_LEFT135 (9)		//左135
+#define M_RIGHT180 (10)	        //右180
+#define M_LEFT180 (11)		//左180
+#define M_RIGHT180_F (15)       //右180大回り
+#define M_LEFT180_F (16)	//左180大回り
+#define M_RIGHT45OUT (12)	//右45出口
+#define M_LEFT45OUT (13)	//左45出口
+#define M_FRONT_DIAGONAL (14) //斜め前進
+
+
 
 typedef enum
 {
@@ -70,6 +107,12 @@ short unable_to_find_path_to_goal = 0;
 t_position		mypos;							//自己座標
 t_wall			wall[MAZESIZE_X][MAZESIZE_Y];	//壁の情報を格納する構造体配列
 unsigned char	map[MAZESIZE_X][MAZESIZE_Y];	//歩数マップ
+unsigned int	map_time[MAZESIZE_X][MAZESIZE_Y];	//歩数マップ
+//short shortest_route_action[256] = {M_REAR}; // 進む・左・右などの向きで前進・回転を表現
+short shortest_route_action[256]; // 進む・左・右などの向きで前進・回転を表現
+float shortest_route_action_times[256]; // 数字で当てはまる行動(前進・回転)の回数を表現
+short diagonal_route_action[256]; // 進む・左・右などの向きで前進・回転を表現
+float diagonal_route_action_times[256]; // 数字で当てはまる斜め行動(前進・回転)の回数を表現
 //unsigned int		timer;							//1mSごとにカウントアップされる変数.
 
 
@@ -84,6 +127,24 @@ void init_map(int x, int y)
 		{
 			map[i][j] = 255;			//すべて255で埋める
             API_setText(i, j, "255");
+		}
+	}
+	map[x][y] = 0;						//ゴール座標の歩数を０に設定
+    API_setText(x, y, "0");
+}
+
+
+
+void init_map_time(int x, int y)
+{
+//迷路の歩数Mapを初期化する。全体を0xff、引数の座標x,yは0で初期化する
+	int i,j;
+	for(i = 0; i < MAZESIZE_X; i++)		//迷路の大きさ分ループ(x座標)
+	{
+		for(j = 0; j < MAZESIZE_Y; j++)	//迷路の大きさ分ループ(y座標)
+		{
+			map_time[i][j] = 999;			//すべて255で埋める
+            API_setText(i, j, "999");
 		}
 	}
 	map[x][y] = 0;						//ゴール座標の歩数を０に設定
@@ -447,7 +508,11 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	            switch(get_nextdir(gx,gy,MASK_SEARCH,&glob_nextdir))		//次に行く方向を戻り値とする関数を呼ぶ
 	            {
 	                case front:
+                        fprintf(stderr, "front\n");
+                        fflush(stderr);
 	                    if(unable_to_find_path_to_goal == 1) {
+                        fprintf(stderr, "Cant find path!!! \n");
+                        fflush(stderr);
 	                        unable_to_find_path_to_goal = 0;
 	                        continue;
 	                    }
@@ -457,6 +522,8 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	                    break;
 	                
 	                case right:
+                        fprintf(stderr, "right\n");
+                        fflush(stderr);
 	                    //rotate(right,1);									//右に曲がって
 	                    //straight(HALF_SECTION,0,SEARCH_SPEED,SEARCH_SPEED);	//半区画進む
                         API_turnRight();
@@ -464,6 +531,8 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	                    break;
 	                
 	                case left:
+                        fprintf(stderr, "left\n");
+                        fflush(stderr);
 	                    //rotate(left,1);										//左に曲がって
 	                    //straight(HALF_SECTION,0,SEARCH_SPEED,SEARCH_SPEED);	//半区画進む
                         API_turnLeft();
@@ -471,7 +540,8 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	                    break;
 	                
 	                case rear:
-			    
+                        fprintf(stderr, "rear\n");
+                        fflush(stderr);
 	                    //rotate(left,2);										//180ターン
 	                    //straight(HALF_SECTION,0,SEARCH_SPEED,SEARCH_SPEED);	//半区画進む
                         API_turnLeft();
@@ -479,6 +549,8 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
                         API_moveForward();
 	                    break;
 			case stop:
+                fprintf(stderr, "STOP!!! \n");
+                fflush(stderr);
 			    if(unable_to_find_path_to_goal == 1) {
 	                        unable_to_find_path_to_goal = 0;
 			    }
@@ -492,18 +564,23 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	            switch(mypos.dir)
 	            {
 	                case north:
+                        fprintf(stderr, "current direction: north \n");
+                        fflush(stderr);
 	                    mypos.y++;	//北を向いた時はY座標を増やす
 	                    break;
 	                    
 	                case east:
+                        fprintf(stderr, "current direction: east\n");
 	                    mypos.x++;	//東を向いた時はX座標を増やす
 	                    break;
 	                    
 	                case south:
+                        fprintf(stderr, "current direction: south\n");
 	                    mypos.y--;	//南を向いた時はY座標を減らす
 	                    break;
 	                
 	                case west:
+                        fprintf(stderr, "current direction: west\n");
 	                    mypos.x--;	//西を向いたときはX座標を減らす
 	                    break;
 
@@ -512,17 +589,11 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	            while(((mypos.x != gx) || (mypos.y != gy)) && (!no_goal_exit_loop_flag)){							//ゴールするまで繰り返す
                     fprintf(stderr, "current x: %d, y: %d | goal:%d, %d \n", mypos.x, mypos.y, gx, gy);
                     fflush(stderr);
-	                	if(mypos.x<0 || mypos.x>15 ) 	{
-                            return 1;
-				}
-				if(mypos.y<0 || mypos.y>15 ) {
-                    return 1;
-				}    
-                   API_setColor(mypos.x, mypos.y, 'A');
-		    	   if (already_passed_boolean_map[mypos.y*16 + mypos.x] == 0){
+                    API_setColor(mypos.x, mypos.y, 'A');
+		    	    if (already_passed_boolean_map[mypos.y*16 + mypos.x] == 0){
 		                    already_passed_boolean_map[mypos.y*16 + mypos.x] = 1;
 		                    set_wall(mypos.x,mypos.y);					//壁をセット
-	                   }//*/
+	                }//*/
 			   
 			    if(is_unknown(mypos.x,mypos.y) == true)
 		            {
@@ -562,7 +633,7 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
                             for(short z=0; z<(search_straight_count+1); z++){
                                 API_moveForward();
                             }
-                        API_moveForward();
+                            API_moveForward();
 					    //straight_for_search(SECTION*(search_straight_count+1),700.0,SEARCH_SPEED);
                         } else {
                             API_moveForward();
@@ -654,6 +725,8 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	                        search_straight_count = 0;
 	                        break;
 			case stop:
+                fprintf(stderr, "STOP!!! \n");
+                fflush(stderr);
 			    if(unable_to_find_path_to_goal == 1) {
 				    //search_straight_count=0;
 				    unable_to_find_path_to_goal = 0;
@@ -670,18 +743,23 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 	                switch(mypos.dir)
 	                {
 	                    case north:
+                            fprintf(stderr, "current dir: north\n");
+                            fflush(stderr);
 	                        mypos.y++;	//北を向いた時はY座標を増やす
 	                        break;
 	                        
 	                    case east:
+                            fprintf(stderr, "current dir: east\n");
 	                        mypos.x++;	//東を向いた時はX座標を増やす
 	                        break;
 	                        
 	                    case south:
+                            fprintf(stderr, "current dir: south\n");
 	                        mypos.y--;	//南を向いた時はY座標を減らす
 	                        break;
 	                    
 	                    case west:
+                            fprintf(stderr, "current dir: west\n");
 	                        mypos.x--;	//西を向いたときはX座標を減らす
 	                        break;
 
@@ -720,93 +798,777 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 
 
 
-void make_fast_run_map(int x, int y, int mask)	//歩数マップを作成する
+//スラローム走行の最短経路マップを作成
+void create_fast_run_slalom_map(int x, int y)
 {
-//座標x,yをゴールとした歩数Mapを作成する。
-//maskの値(MASK_SEARCH or MASK_SECOND)によって、
-//探索用の歩数Mapを作るか、最短走行の歩数Mapを作るかが切り替わる\
+	t_direction glob_nextdir;
+	float straight_count = -0.5;
+    int action_id = 0;
+    shortest_route_action[action_id] = M_FRONT;
+    shortest_route_action_times[action_id] = straight_count;
 
-	int i,j;
-	t_bool change_flag;										//Map作成終了を見極めるためのフラグ
-    char str[5];
-
-    API_clearAllText();
-	init_map(x,y);											//Mapを初期化する
-	do
+	//現在の向きから、次に行くべき方向へ向く
+	switch(get_nextdir(x,y,MASK_SECOND,&glob_nextdir))	//次に行く方向を戻り値とする関数を呼ぶ
 	{
-		change_flag = false;								//変更がなかった場合にはループを抜ける
-		for(i = 0; i < MAZESIZE_X; i++)						//迷路の大きさ分ループ(x座標)
-		{
-			for(j = 0; j < MAZESIZE_Y; j++)					//迷路の大きさ分ループ(y座標)
-			{
-				if(map[i][j] == 255)						//255の場合は次へ
-				{
-					continue;
-				}
-				
-				if(j < MAZESIZE_Y-1)						//範囲チェック
-				{
-					if( (wall[i][j].north & mask) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-					{
-						if(map[i][j+1] == 255)				//まだ値が入っていなければ
-						{
-							map[i][j+1] = map[i][j] + 1;	//値を代入
-                            sprintf(str, "%u", map[i][j+1]);
-                            API_setText(i, j+1, str);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-				}
-			
-				if(i < MAZESIZE_X-1)						//範囲チェック
-				{
-					if( (wall[i][j].east & mask) == NOWALL)	//壁がなければ
-					{
-						if(map[i+1][j] == 255)				//値が入っていなければ
-						{
-							map[i+1][j] = map[i][j] + 1;	//値を代入
-                            sprintf(str, "%u", map[i+1][j]);
-                            API_setText(i+1, j, str);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-				}
-			
-				if(j > 0)									//範囲チェック
-				{
-					if( (wall[i][j].south & mask) == NOWALL)//壁がなければ
-					{
-						if(map[i][j-1] == 255)				//値が入っていなければ
-						{
-							map[i][j-1] = map[i][j] + 1;	//値を代入
-                            sprintf(str, "%u", map[i][j-1]);
-                            API_setText(i, j-1, str);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-				}
-			
-				if(i > 0)									//範囲チェック
-				{
-					if( (wall[i][j].west & mask) == NOWALL)	//壁がなければ
-					{
-						if(map[i-1][j] == 255)				//値が入っていなければ
-						{
-							map[i-1][j] = map[i][j] + 1;	//値を代入	
-                            sprintf(str, "%u", map[i-1][j]);
-                            API_setText(i-1, j, str);
-							change_flag = true;				//値が更新されたことを示す
-						}
-						
-					}
-					
-				}
-				
-			}
-			
-		}
+		case front:
+			straight_count++;							//前向きだった場合は直線を走る距離を伸ばす
+			break;
 		
-	}while(change_flag == true);	//全体を作り終わるまで待つ
+		case right:										//右に向く
+			straight_count++;							//前向きだった場合は直線を走る距離を伸ばす
+			break;
+		
+		case left:										//左に向く
+			straight_count++;							//前向きだった場合は直線を走る距離を伸ばす
+			break;
+		
+		case rear:										//後ろに向く
+			straight_count++;							//前向きだった場合は直線を走る距離を伸ばす
+			break;
+	}
+
+    shortest_route_action[action_id] = M_FRONT;
+    shortest_route_action_times[action_id] = straight_count;
+	mypos.dir = glob_nextdir;							//自分の向きを更新
+
+
+	//向いた方向によって自分の座標を更新する
+	switch(mypos.dir)
+	{
+		case north:
+			mypos.y++;	//北を向いた時はY座標を増やす
+			break;
+			
+		case east:
+			mypos.x++;	//東を向いた時はX座標を増やす
+			break;
+			
+		case south:
+			mypos.y--;	//南を向いた時はY座標を減らす
+			break;
+		
+		case west:
+			mypos.x--;	//西を向いたときはX座標を減らす
+			break;
+	}
+
+	while((mypos.x != x) || (mypos.y != y)){	//ゴールするまで繰り返す
+		switch(get_nextdir(x,y,MASK_SECOND,&glob_nextdir))	//次に行く方向を戻り値とする関数を呼ぶ
+		{
+			case front:	//直線をまとめて走るようにする
+				straight_count += 1.0;
+				break;
+			
+			case right:
+		                if (straight_count > 0.0) {
+		                    //前進を登録
+		                    shortest_route_action[action_id] = M_FRONT;
+		                    shortest_route_action_times[action_id] = straight_count;
+		                    action_id++;
+
+		                    //回転を登録
+		                    shortest_route_action[action_id] = M_RIGHT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                    straight_count = 0.0;
+		                }
+		                else {
+		                    //回転を登録
+		                    shortest_route_action[action_id] = M_RIGHT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                }
+				break;
+			
+			case left:
+		                if (straight_count > 0.0) {
+		                    //前進を登録
+		                    shortest_route_action[action_id] = M_FRONT;
+		                    shortest_route_action_times[action_id] = straight_count;
+		                    action_id++;
+
+		                    //回転を登録
+		                    shortest_route_action[action_id] = M_LEFT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                    straight_count = 0.0;
+		                }
+		                else {
+		                    //回転を登録
+		                    shortest_route_action[action_id] = M_LEFT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                }
+		}
+	
+		mypos.dir = glob_nextdir;							//自分の向きを修正
+		
+		//向いた方向によって自分の座標を更新する
+		switch(mypos.dir)
+		{
+			case north:
+				mypos.y++;	//北を向いた時はY座標を増やす
+				break;
+				
+			case east:
+				mypos.x++;	//東を向いた時はX座標を増やす
+				break;
+				
+			case south:
+				mypos.y--;	//南を向いた時はY座標を減らす
+				break;
+			
+			case west:
+				mypos.x--;	//西を向いたときはX座標を減らす
+				break;
+
+		}
+	}
+    shortest_route_action[action_id] = M_FRONT;
+    shortest_route_action_times[action_id] = straight_count + 0.5;
+    action_id++;
+    shortest_route_action[action_id] = M_REAR;
+}
+
+
+
+void convert_shortest_route_to_diagonal_route(void)
+{
+    int action_id = 0;
+    int diagonal_action_id = 0;
+    int current_dir = M_FRONT;
+    
+    //if (shortest_route_action_times[action_id] <= 1.0) {
+	//diagonal_route_action[diagonal_action_id] = M_FRONT;
+    //    diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id];
+    //    diagonal_action_id++;
+    //    action_id++;
+	//
+	//while(shortest_route_action[action_id] != M_FRONT) {
+    //            diagonal_route_action[diagonal_action_id] = shortest_route_action[action_id];
+    //            diagonal_route_action_times[diagonal_action_id] = 1.0;
+    //            diagonal_action_id++;
+	//	action_id++;
+	//}
+	//shortest_route_action_times[action_id] -= 0.5;
+    //}
+    
+    while(shortest_route_action[action_id] != M_REAR) {
+        //fprintf(stderr, "action id of convert to diagonal_route %d\n", action_id);
+        //fflush(stderr);
+        switch(shortest_route_action[action_id])	//次に行く方向を戻り値とする関数を呼ぶ
+    	{
+	    case M_FRONT:
+            fflush(stderr);
+            //現在の姿勢が右斜め状態
+            if (current_dir == M_RIGHT45) { //45度出口
+                current_dir = M_FRONT; //姿勢を更新
+                diagonal_route_action[diagonal_action_id] = M_LEFT45OUT;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                // 斜め45度出口後、姿勢を修正するための区画を確保
+                shortest_route_action_times[action_id] -= 0.5;
+            }
+
+            //現在の姿勢が左斜め状態
+            if (current_dir == M_LEFT45) { //45度出口
+                current_dir = M_FRONT; //姿勢を更新
+                diagonal_route_action[diagonal_action_id] = M_RIGHT45OUT;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                // 斜め45度出口後、姿勢を修正するための区画を確保
+                shortest_route_action_times[action_id] -= 0.5;
+            }
+
+            //以下の現在姿勢は真っ直ぐの状態
+            //最後の直線であるかどうかの確認
+            if (shortest_route_action[action_id+1] == M_REAR) {
+                diagonal_route_action[diagonal_action_id] = M_FRONT;
+                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id];
+                diagonal_action_id++;
+                action_id++;
+
+                diagonal_route_action[diagonal_action_id] = M_REAR;
+                break;
+            }
+
+            //左45度斜め開始
+            //進→左→右 
+            if ((shortest_route_action[action_id+1] == M_LEFT) && (shortest_route_action[action_id+2] == M_RIGHT)) {
+                diagonal_route_action[diagonal_action_id] = M_FRONT;
+                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id] - 0.5; //45度斜め回転の準備区画
+                diagonal_action_id++;
+
+                current_dir = M_LEFT45;//姿勢を更新
+                diagonal_route_action[diagonal_action_id] = M_LEFT45;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                action_id += 3; //次の行動までスキップ
+                break;
+            } 
+            
+            //右45度斜め開始
+            //進→右→左 
+            if ((shortest_route_action[action_id+1] == M_RIGHT) && (shortest_route_action[action_id+2] == M_LEFT)) {
+                diagonal_route_action[diagonal_action_id] = M_FRONT;
+                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id] - 0.5; //45度斜め回転の準備区画
+                diagonal_action_id++;
+
+                current_dir = M_RIGHT45;//姿勢を更新
+                diagonal_route_action[diagonal_action_id] = M_RIGHT45;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                action_id += 3; //次の行動までスキップ
+                break;
+            }
+            
+            //左90度回転
+            //進→左→進
+            if ((shortest_route_action[action_id+1] == M_LEFT) && (shortest_route_action[action_id+2] == M_FRONT)) {	  
+		//左90度回転大回り
+                /*if (shortest_route_action_times[action_id] >= 2.0 && shortest_route_action_times[action_id+2] >= 2.5) {
+	    		diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id] - 0.5;
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT;//姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_LEFT_F;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+
+	                shortest_route_action_times[action_id+2] -= 1.5;
+                } else {*/
+	                diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id];
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT;//姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_LEFT;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+
+	                shortest_route_action_times[action_id+2] -= 0.25;
+		//}
+                action_id += 2; //次の直線行動までスキップ
+                break;
+            }
+
+            //右90度回転
+            //進→右→進
+            if ((shortest_route_action[action_id+1] == M_RIGHT) && (shortest_route_action[action_id+2] == M_FRONT)) {
+                /*if (shortest_route_action_times[action_id] >= 2.0 && shortest_route_action_times[action_id+2] >= 2.5) {
+	    		diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id] - 0.5;
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT;//姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_RIGHT_F;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+
+	                shortest_route_action_times[action_id+2] -= 1.5;
+                } else {*/
+	                diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id];
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT; //姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_RIGHT;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+
+	                shortest_route_action_times[action_id+2] -= 0.25;
+		//}
+                action_id += 2; //次の行動までスキップ
+                break;
+            }
+
+            //左135度回転
+            //進→左→左→右
+            if ((shortest_route_action[action_id+1] == M_LEFT) && (shortest_route_action[action_id+2] == M_LEFT) && (shortest_route_action[action_id+3] == M_RIGHT)) {
+                diagonal_route_action[diagonal_action_id] = M_FRONT;
+                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id]-0.5;
+                diagonal_action_id++;
+
+                current_dir = M_LEFT45; //姿勢を更新、90+斜め45度であるため、姿勢は斜め45度と同じ
+                diagonal_route_action[diagonal_action_id] = M_LEFT135;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                // 左135→右V90でない時
+                if (shortest_route_action[action_id+4] != M_RIGHT) {
+                    diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                    diagonal_route_action_times[diagonal_action_id] = 1.0;
+                    diagonal_action_id++;
+                }
+
+                action_id += 4; //次の行動までスキップ
+                break;
+            }
+
+            //右135度回転
+            //進→右→右→左
+            if ((shortest_route_action[action_id+1] == M_RIGHT) && (shortest_route_action[action_id+2] == M_RIGHT) && (shortest_route_action[action_id+3] == M_LEFT)) {
+                diagonal_route_action[diagonal_action_id] = M_FRONT;
+                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id]-0.5;
+                diagonal_action_id++;
+
+                current_dir = M_RIGHT45; //姿勢を更新、90+斜め45度であるため、姿勢は斜め45度と同じ
+                diagonal_route_action[diagonal_action_id] = M_RIGHT135;
+                diagonal_route_action_times[diagonal_action_id] = 1.0;
+                diagonal_action_id++;
+
+                // 右135→左V90でない時
+                if (shortest_route_action[action_id+4] != M_LEFT) {
+                    diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                    diagonal_route_action_times[diagonal_action_id] = 1.0;
+                    diagonal_action_id++;
+                }
+
+                action_id += 4; //次の行動までスキップ
+                break;
+            }
+
+            //左180度回転
+            //進→左→左→進
+            if ((shortest_route_action[action_id+1] == M_LEFT) && (shortest_route_action[action_id+2] == M_LEFT) && (shortest_route_action[action_id+3] == M_FRONT)) {
+                /*if ((shortest_route_action_times[action_id+3] - 0.5) >= 1.0) {
+			diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id]-0.2;
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT; //姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_LEFT180_F;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+	                shortest_route_action_times[action_id+3] -= 0.01;
+	                //shortest_route_action_times[action_id+3] -= 0.7;
+		} else {*/
+		        diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id]-0.1;
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT; //姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_LEFT180;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+			shortest_route_action_times[action_id+3] -= (0.25 + 0.07);
+	                //shortest_route_action_times[action_id+3] -= 0.5;
+		//}
+                action_id += 3; //次の行動までスキップ
+                break;
+            }
+
+            //右180度回転
+            //進→右→右→進
+            if ((shortest_route_action[action_id+1] == M_RIGHT) && (shortest_route_action[action_id+2] == M_RIGHT) && (shortest_route_action[action_id+3] == M_FRONT)) {
+		/*if ((shortest_route_action_times[action_id+3] - 0.5) >= 1.0) {
+			diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id]-0.2;
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT; //姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_RIGHT180_F;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+	                shortest_route_action_times[action_id+3] -= 0.01;
+	                //shortest_route_action_times[action_id+3] -= 0.7;
+		} else {*/
+	                diagonal_route_action[diagonal_action_id] = M_FRONT;
+	                diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id]-0.1;
+	                diagonal_action_id++;
+
+	                current_dir = M_FRONT; //姿勢を更新
+	                diagonal_route_action[diagonal_action_id] = M_RIGHT180;
+	                diagonal_route_action_times[diagonal_action_id] = 1.0;
+	                diagonal_action_id++;
+			shortest_route_action_times[action_id+3] -= (0.25 + 0.07);
+	                //shortest_route_action_times[action_id+3] -= 0.5;
+		//}
+                action_id += 3; //次の行動までスキップ
+                break;
+            }
+
+	        diagonal_route_action[diagonal_action_id] = M_FRONT;
+	        diagonal_route_action_times[diagonal_action_id] = shortest_route_action_times[action_id];
+	        diagonal_action_id++;
+	        action_id++;
+	        current_dir = M_FRONT;//姿勢を更新
+		
+        //##################################右回転######################################
+		case M_RIGHT:
+            if (current_dir == M_FRONT) {break;}
+
+            if (current_dir == M_LEFT45) { //右回転直後に右回転する状態(left45==右回転直後) → 右+右状態
+                //右→右→進 == 右V90度1回転 → 右45度(45度はfrontのケースで行う)
+                if (shortest_route_action[action_id+1] == M_FRONT) {
+                    diagonal_route_action[diagonal_action_id] = M_RIGHTV90;
+                    diagonal_route_action_times[diagonal_action_id] = 1.0;
+                    diagonal_action_id++;
+
+                    action_id += 1; //次の行動までスキップ
+                    break;
+                }
+
+                //右→右→左 == 右V90度回転+ 斜め前進
+                if (shortest_route_action[action_id+1] == M_LEFT) {
+                    current_dir = M_RIGHT45; //45度斜めと同じ姿勢に修正
+                    diagonal_route_action[diagonal_action_id] = M_RIGHTV90;
+                    diagonal_route_action_times[diagonal_action_id] = 1.0;
+                    diagonal_action_id++;
+
+                    diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                    diagonal_route_action_times[diagonal_action_id] = 1.0;
+                    diagonal_action_id++;
+
+                    action_id += 2; //次の行動までスキップ
+                    break;
+                }
+            }
+
+            if (current_dir == M_RIGHT45) {//左回転直後に右回転する状態(left45==右回転直後) → 左+右状態
+                //左→右→進 == 斜め前進 → 右45度(45度はfrontのケースで行う)
+                if ((shortest_route_action[action_id+1] == M_FRONT)) {
+                    current_dir = M_LEFT45; //次のステップで姿勢を真っ直ぐに直すために、45度斜めと同じ姿勢に修正
+                    if (diagonal_route_action[diagonal_action_id-1] == M_FRONT_DIAGONAL) {
+                        diagonal_route_action_times[diagonal_action_id-1] += 1.0;
+                    } else {
+                        diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+                    }
+
+                    action_id += 1; //次の行動までスキップ
+                    break;
+                }
+
+                //左→右→左 == 斜め前進x2 
+                if (shortest_route_action[action_id+1] == M_LEFT) {
+                    if (diagonal_route_action[diagonal_action_id-1] == M_FRONT_DIAGONAL) {
+                        diagonal_route_action_times[diagonal_action_id-1] += 2.0;
+                    } else {
+                        diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                        diagonal_route_action_times[diagonal_action_id] = 2.0;
+                        diagonal_action_id++;
+                    }
+
+                    action_id += 2; //次の行動までスキップ
+                    break;
+                }
+
+                //左→右→右 == 斜め前進 + 右V90
+                if (shortest_route_action[action_id+1] == M_RIGHT) {
+                    current_dir = M_LEFT45; //次のステップで姿勢を真っ直ぐに直すために、45度斜めと同じ姿勢に修正
+                    if (diagonal_route_action[diagonal_action_id-1] == M_FRONT_DIAGONAL) {
+                        diagonal_route_action_times[diagonal_action_id-1] += 1.0;
+
+                        diagonal_route_action[diagonal_action_id] = M_RIGHTV90;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+                    } else {
+                        diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+
+                        diagonal_route_action[diagonal_action_id] = M_RIGHTV90;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+                    }
+
+                    action_id += 2; //次の行動までスキップ
+                    break;
+                }
+            }
+		
+        //##################################左回転######################################
+		case M_LEFT:
+            //姿勢斜め状態で左回転
+            if (current_dir == M_FRONT) {break;}
+
+            if (current_dir == M_LEFT45) { //右回転直後に左回転する状態(left45==右回転直後) → 右+左状態
+                //右→左→進 == 斜め前進 + 左45度
+                if (shortest_route_action[action_id+1] == M_FRONT) {
+                    current_dir = M_RIGHT45; //45度斜めと同じ姿勢に修正
+                    if (diagonal_route_action[diagonal_action_id-1] == M_FRONT_DIAGONAL) {
+                        diagonal_route_action_times[diagonal_action_id-1] += 1.0;
+                    } else {
+                        diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+                    }
+
+                    action_id += 1; //次の行動までスキップ
+                    break;
+                }
+
+                //右→左→左 == 斜め前進 + 左V90度
+                if (shortest_route_action[action_id+1] == M_LEFT) {
+                    current_dir = M_RIGHT45; //次のステップで姿勢を真っ直ぐに直すために、45度斜めと同じ姿勢に修正
+                    if (diagonal_route_action[diagonal_action_id-1] == M_FRONT_DIAGONAL) {
+                        diagonal_route_action_times[diagonal_action_id-1] += 1.0;
+
+                        diagonal_route_action[diagonal_action_id] = M_LEFTV90;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+                    } else {
+                        diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+
+                        diagonal_route_action[diagonal_action_id] = M_LEFTV90;
+                        diagonal_route_action_times[diagonal_action_id] = 1.0;
+                        diagonal_action_id++;
+                    }
+
+                    action_id += 2; //次の行動までスキップ
+                    break;
+                }
+
+                //右→左→右 == 斜め前進x2
+                if (shortest_route_action[action_id+1] == M_RIGHT) {
+                    if (diagonal_route_action[diagonal_action_id-1] == M_FRONT_DIAGONAL) {
+                        diagonal_route_action_times[diagonal_action_id-1] += 2.0;
+                    } else {
+                        diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                        diagonal_route_action_times[diagonal_action_id] = 2.0;
+                        diagonal_action_id++;
+                    }
+
+                    action_id += 2; //次の行動までスキップ
+                    break;
+                }
+            }
+
+            if (current_dir == M_RIGHT45) {//左回転直後に左回転する状態(left45==右回転直後) → 左+左状態
+                //左→左→進 == 左V90 + 右45度
+                if (shortest_route_action[action_id+1] == M_FRONT) {
+                    diagonal_route_action[diagonal_action_id] = M_LEFTV90;
+                    diagonal_route_action_times[diagonal_action_id] = 1.0;
+                    diagonal_action_id++;
+
+                    action_id += 1; //次の行動までスキップ
+                    break;
+                }
+
+                //左→左→右 == 左V90 + 斜め前進
+                if (shortest_route_action[action_id+1] == M_RIGHT) {
+                    current_dir = M_LEFT45; //45度斜めと同じ姿勢に修正
+                    diagonal_route_action[diagonal_action_id] = M_LEFTV90;
+                    diagonal_route_action_times[diagonal_action_id] = 1.0;
+                    diagonal_action_id++;
+
+                    diagonal_route_action[diagonal_action_id] = M_FRONT_DIAGONAL;
+                    diagonal_route_action_times[diagonal_action_id] = 1;
+                    diagonal_action_id++;
+
+                    action_id += 2; //次の行動までスキップ
+                    break;
+                }
+            }
+        }
+	//action_id++;
+    }
+}
+
+
+unsigned int calculate_fast_run_slalom_time_with_map(int x, int y)
+{
+    create_fast_run_slalom_map(x, y);
+    //引数の座標x,yに向かって最短走行する
+    unsigned int total_runtime = 0;
+	int action_id = 1;
+
+	if (shortest_route_action_times[0] > 1.0) {
+		total_runtime += (unsigned int) (((shortest_route_action_times[0]*SECTION+30.0)/ZENSHIN_MAX_SPEED) *1000); // cost milisecond runtime
+	} else {	//1区画は直線を走る
+		total_runtime += (unsigned int) (((shortest_route_action_times[0]*SECTION+30.0)/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+	}
+
+	while(shortest_route_action[action_id] != M_REAR){	//ゴールするまで繰り返す
+		switch(shortest_route_action[action_id])	//次に行く方向を戻り値とする関数を呼ぶ
+		{
+			case M_FRONT:	//直線をまとめて走るようにする
+		        if (shortest_route_action[action_id+1] == M_REAR) {
+                    total_runtime += (unsigned int) (((shortest_route_action_times[action_id]*SECTION)/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+		            break;
+		        }
+
+		        if (shortest_route_action_times[action_id] > 1.0) {
+                    total_runtime += (unsigned int) (((shortest_route_action_times[action_id]*SECTION)/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+		            break;
+		        } else {
+                    total_runtime += (unsigned int) (((shortest_route_action_times[action_id]*SECTION)/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+		            break;		
+			    }
+			
+			case M_RIGHT:
+                total_runtime += DAIKEI_END_TIME; // cost milisecond runtime
+			    break;
+			
+			case M_LEFT:
+                total_runtime += DAIKEI_END_TIME; // cost milisecond runtime
+                }
+	       action_id++;
+	}
+    return total_runtime;
+}
+
+
+unsigned int calculate_max_fast_run_diagonal_time_with_map(int x, int y)
+{
+    fprintf(stderr, "start create fast slalom map\n");
+    fflush(stderr);
+    create_fast_run_slalom_map(x, y);
+
+    fprintf(stderr, "start convert fast slalom map to diagonal_route\n");
+    fflush(stderr);
+    convert_shortest_route_to_diagonal_route();
+
+    //引数の座標x,yに向かって最短走行する
+    fprintf(stderr, "start calculate diagonal_route time\n");
+    fflush(stderr);
+    
+    int action_id = 1;
+    float prev_spd, next_spd;
+    float diagonal_len, len;
+    float max_spd;
+    unsigned int total_runtime = 0;
+    
+    if (diagonal_route_action_times[0] > 1.0) {	 //長い直線を全速で走る
+		total_runtime += (unsigned int) (((diagonal_route_action_times[0]*SECTION+30.0)/ZENSHIN_MAX_SPEED) *1000); // cost milisecond runtime
+    } else {	//1区画は直線を走る
+		total_runtime += (unsigned int) (((diagonal_route_action_times[0]*SECTION+30.0)/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+    }
+
+    while(diagonal_route_action[action_id] != M_REAR){	//ゴールするまで繰り返す
+        switch(diagonal_route_action[action_id]) {	//次に行く方向を戻り値とする関数を呼ぶ 
+            case M_FRONT:
+                len = diagonal_route_action_times[action_id]*SECTION;
+
+                if (len > 0) {
+                    if (diagonal_route_action_times[action_id] >= 2.5) {
+                        total_runtime += (unsigned int) ((len/ZENSHIN_MAX_SPEED) *1000); // cost milisecond runtime
+                    } else if (diagonal_route_action_times[action_id] > 1.0) {
+                        total_runtime += (unsigned int) ((len/600) *1000); // cost milisecond runtime
+                    } else {
+                        total_runtime += (unsigned int) ((len/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+                    }
+                }
+                break;
+                
+            case M_RIGHT:
+                total_runtime += DAIKEI_END_TIME; // cost milisecond runtime
+                break;
+                
+            case M_LEFT:
+                total_runtime += DAIKEI_END_TIME; // cost milisecond runtime
+                break;
+		
+            case M_RIGHT45:		//右45
+                total_runtime += DAIKEI_45IN_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_LEFT45:		//左45
+                total_runtime += DAIKEI_45IN_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_RIGHTV90:		//右V90
+                if ((diagonal_route_action[action_id - 2] == M_LEFT135) && (diagonal_route_action[action_id + 1] != M_RIGHT45OUT) && (diagonal_route_action[action_id + 1] !=  M_LEFT45OUT)) { //135LEFT -> V90RIGHT ->  not 45OUT
+                    total_runtime += DAIKEI_V90_END_TIME; // cost milisecond runtime
+                    break;
+                } else if ((diagonal_route_action[action_id + 2] == M_RIGHTV90 && diagonal_route_action[action_id + 3] == M_RIGHT45OUT) || (diagonal_route_action[action_id + 2] == M_LEFTV90 && diagonal_route_action[action_id + 3] == M_LEFT45OUT)) { //V90 -> V90 -> 45OUT
+                    total_runtime += DAIKEI_V90_END_TIME; // cost milisecond runtime
+                    break;
+                } else if ((diagonal_route_action[action_id - 2] == M_LEFTV90 || (diagonal_route_action[action_id - 2] == M_RIGHTV90 && (int)diagonal_route_action_times[action_id - 1]%2 == 0)) && (diagonal_route_action[action_id + 1] == M_RIGHT45OUT)) { //V90 -> V90 -> 45OUT
+                    total_runtime += DAIKEI_135OUT_END_TIME; // cost milisecond runtime
+                    action_id++;
+                    break;
+                } else if (diagonal_route_action[action_id + 1] == M_RIGHT45OUT) { //135 -> V90 -> 45OUT
+                    total_runtime += DAIKEI_135OUT_END_TIME; // cost milisecond runtime
+                    action_id++;
+                    break;
+                }
+                total_runtime += DAIKEI_V90_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_LEFTV90:		//左V90
+                if ((diagonal_route_action[action_id - 2] == M_RIGHT135) && (diagonal_route_action[action_id + 1] != M_RIGHT45OUT) && (diagonal_route_action[action_id + 1] !=  M_LEFT45OUT)) { //135RIGHT -> V90LEFT ->  not 45OUT
+                    total_runtime += DAIKEI_V90_END_TIME; // cost milisecond runtime
+                    break;
+                } else if ((diagonal_route_action[action_id + 2] == M_RIGHTV90 && diagonal_route_action[action_id + 3] == M_RIGHT45OUT) || (diagonal_route_action[action_id + 2] == M_LEFTV90 && diagonal_route_action[action_id + 3] == M_LEFT45OUT)) { //V90 -> V90 -> 45OUT
+                    total_runtime += DAIKEI_V90_END_TIME; // cost milisecond runtime
+                    break;
+                } else if (((diagonal_route_action[action_id - 2] == M_LEFTV90 && (int)diagonal_route_action_times[action_id - 1]%2 == 0) || diagonal_route_action[action_id - 2] == M_RIGHTV90) && (diagonal_route_action[action_id + 1] == M_LEFT45OUT)) { //V90 -> V90 -> 45OUT
+                    total_runtime += DAIKEI_135OUT_END_TIME; // cost milisecond runtime
+                    action_id++;
+                    break;
+                } else if (diagonal_route_action[action_id + 1] == M_LEFT45OUT) { //135 -> V90 -> 45OUT
+                    total_runtime += DAIKEI_135OUT_END_TIME; // cost milisecond runtime
+                    action_id++;
+                    break;
+                }
+                total_runtime += DAIKEI_V90_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_RIGHT135:		//右135
+                total_runtime += DAIKEI_135IN_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_LEFT135:		//左135
+                total_runtime += DAIKEI_135IN_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_RIGHT180:	    //右180
+                total_runtime += DAIKEI_OOMAWARI180_END_TIME; // cost milisecond runtime
+                total_runtime += (unsigned int) (((HALF_SECTION/2)/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+                break;
+
+            case M_LEFT180:     	//左180
+                total_runtime += DAIKEI_OOMAWARI180_END_TIME; // cost milisecond runtime
+                total_runtime += (unsigned int) (((HALF_SECTION/2)/DAIKEI_ZENSHIN) *1000); // cost milisecond runtime
+                break;
+
+            case M_RIGHT45OUT:	 //右45出口
+                total_runtime += DAIKEI_45OUT_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_LEFT45OUT:	     //左45出口
+                total_runtime += DAIKEI_45OUT_END_TIME; // cost milisecond runtime
+                break;
+
+            case M_FRONT_DIAGONAL: //斜め前進
+                diagonal_len = diagonal_route_action_times[action_id];
+                max_spd = DAIKEI_ZENSHIN;
+                diagonal_len -= 1.0;
+                
+                if(diagonal_len > 0) {
+                    max_spd = 700.0;
+	                if (diagonal_len >= 4.0) {
+	                    max_spd = ZENSHIN_MAX_SPEED;
+	                } else if (diagonal_len >= 2.0) {
+	                    max_spd = 800.0;
+	                }
+
+	                len = diagonal_len*(2.0*DIAGONAL_QUARTER_SECTION);
+                    total_runtime += (unsigned int) ((len/max_spd) *1000); // cost milisecond runtime
+                    break;
+                }
+        }
+	action_id++;
+    }
+    return total_runtime;
 }
 
 
@@ -818,6 +1580,7 @@ int get_nextdir_fast_run(int x, int y, int mask, t_direction *dir)
 	int little,priority,tmp_priority;								//最小の値を探すために使用する変数
  
 	make_map(x,y,mask);												//歩数Map生成
+	//make_fast_run_map_with_run_time(x,y,mask);												//歩数Map生成
 	little = 255;													//最小歩数を255歩(mapがunsigned char型なので)に設定	
 
 	priority = 0;													//優先度の初期値は0
@@ -906,6 +1669,194 @@ int get_nextdir_fast_run(int x, int y, int mask, t_direction *dir)
 
 
 
+void make_fast_run_map_with_run_time(int x, int y, int mask)	//歩数マップを作成する
+{
+//座標x,yをゴールとした歩数Mapを作成する。
+//maskの値(MASK_SEARCH or MASK_SECOND)によって、
+//探索用の歩数Mapを作るか、最短走行の歩数Mapを作るかが切り替わる\
+
+	int i,j;
+	t_bool change_flag;										//Map作成終了を見極めるためのフラグ
+    char str[5];
+    unsigned int time;
+
+    //API_clearAllText();
+    //fprintf(stderr, "init_map\n");
+    //fflush(stderr);
+	//init_map(x,y);											//Mapを初期化する
+
+    API_clearAllText();
+    fprintf(stderr, "init_map time\n");
+    fflush(stderr);
+	init_map_time(x,y);											//Mapを初期化する
+
+    fprintf(stderr, "start creating map time\n");
+    fflush(stderr);
+	do
+	{
+		change_flag = false;								//変更がなかった場合にはループを抜ける
+		for(i = 0; i < MAZESIZE_X; i++)						//迷路の大きさ分ループ(x座標)
+		{
+			for(j = 0; j < MAZESIZE_Y; j++)					//迷路の大きさ分ループ(y座標)
+			{
+                if (i == x && j == y)
+                    continue;
+                fprintf(stderr, "x: %d, y: %d\n", i, j);
+                fflush(stderr);
+                // calculate time to goal
+
+                mypos.x = i;
+                mypos.y = j;
+                if (mypos.x <= mypos.y)
+                    mypos.dir = north;
+                else
+                    mypos.dir = east;
+                time = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);       
+                map_time[i][j] = time;       
+                fprintf(stderr, "time: %u\n", time);
+                fflush(stderr);
+                //time /= 1000;
+                //sprintf(str, "%u", time);
+                //API_setText(i, j, str);
+
+                /*
+				if(map[i][j] == 255)						//255の場合は次へ
+				{
+					continue;
+				}
+				
+				if(j < MAZESIZE_Y-1)						//範囲チェック
+				{
+					if( (wall[i][j].north & mask) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
+					{
+						if(map[i][j+1] == 255)				//まだ値が入っていなければ
+						{
+							map[i][j+1] = map[i][j] + 1;	//値を代入
+                            //sprintf(str, "%u", map[i][j+1]);
+                            //API_setText(i, j+1, str);
+							change_flag = true;				//値が更新されたことを示す
+                            
+                            // calculate time to goal
+                            mypos.x = i;
+                            mypos.y = j+1;
+                            if (mypos.x <= mypos.y)
+                                mypos.dir = north;
+                            else
+                                mypos.dir = east;
+                            time = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);       
+                            map_time[i][j+1] = time;       
+                            sprintf(str, "%u", time);
+                            API_setText(i, j+1, str);
+                            fprintf(stderr, "north\n");
+                            fflush(stderr);
+                            fprintf(stderr, "time: %u\n", time);
+                            fflush(stderr);
+						}
+					}
+				}
+			
+				if(i < MAZESIZE_X-1)						//範囲チェック
+				{
+					if( (wall[i][j].east & mask) == NOWALL)	//壁がなければ
+					{
+						if(map[i+1][j] == 255)				//値が入っていなければ
+						{
+							map[i+1][j] = map[i][j] + 1;	//値を代入
+                            //sprintf(str, "%u", map[i+1][j]);
+							change_flag = true;				//値が更新されたことを示す
+                            
+                            // calculate time to goal
+                            mypos.x = i+1;
+                            mypos.y = j;
+                            if (mypos.x <= mypos.y)
+                                mypos.dir = north;
+                            else
+                                mypos.dir = east;
+                            time = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);       
+                            map_time[i+1][j] = time;       
+                            sprintf(str, "%u", time);
+                            API_setText(i+1, j, str);
+                            fprintf(stderr, "east\n");
+                            fflush(stderr);
+                            fprintf(stderr, "time: %u\n", time);
+                            fflush(stderr);
+						}
+					}
+				}
+			
+				if(j > 0)									//範囲チェック
+				{
+					if( (wall[i][j].south & mask) == NOWALL)//壁がなければ
+					{
+						if(map[i][j-1] == 255)				//値が入っていなければ
+						{
+							map[i][j-1] = map[i][j] + 1;	//値を代入
+                            //sprintf(str, "%u", map[i][j-1]);
+                            //API_setText(i, j-1, str);
+							change_flag = true;				//値が更新されたことを示す
+                            
+                            // calculate time to goal
+                            mypos.x = i;
+                            mypos.y = j-1;
+                            if (mypos.x <= mypos.y)
+                                mypos.dir = north;
+                            else
+                                mypos.dir = east;
+                            time = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);       
+                            map_time[i][j-1] = time;       
+                            sprintf(str, "%u", time);
+                            API_setText(i, j-1, str);
+                            fprintf(stderr, "south\n");
+                            fflush(stderr);
+                            fprintf(stderr, "time: %u\n", time);
+                            fflush(stderr);
+						}
+                        else {
+                        }
+					}
+				}
+			
+				if(i > 0)									//範囲チェック
+				{
+					if( (wall[i][j].west & mask) == NOWALL)	//壁がなければ
+					{
+						if(map[i-1][j] == 255)				//値が入っていなければ
+						{
+							map[i-1][j] = map[i][j] + 1;	//値を代入	
+                            //sprintf(str, "%u", map[i-1][j]);
+                            //API_setText(i-1, j, str);
+							change_flag = true;				//値が更新されたことを示す
+                            
+                            // calculate time to goal
+                            mypos.x = i-1;
+                            mypos.y = j;
+                            if (mypos.x <= mypos.y)
+                                mypos.dir = north;
+                            else
+                                mypos.dir = east;
+                            time = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);       
+                            map_time[i-1][j] = time;       
+                            sprintf(str, "%u", time);
+                            API_setText(i-1, j, str);
+                            fprintf(stderr, "west\n");
+                            fflush(stderr);
+                            fprintf(stderr, "time: %u\n", time);
+                            fflush(stderr);
+						}
+						
+					}
+					
+				}
+                */
+				
+			}
+			
+		}
+		
+	}while(change_flag == true);	//全体を作り終わるまで待つ
+}
+
+
 
 void log(char* text) {
     fprintf(stderr, "%s\n", text);
@@ -916,11 +1867,14 @@ int main(int argc, char* argv[]) {
     log("Running...");
     API_setColor(0, 0, 'G');
     API_setText(0, 0, "abc");
+
 	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
     set_wall(mypos.x,mypos.y);					//壁をセット
 
     API_turnLeft();
     API_turnLeft();
+	mypos.x = mypos.y = 0;							//座標を初期化
 	mypos.dir = south;								//方角を初期化
     set_wall(mypos.x,mypos.y);					//壁をセット
 
@@ -937,7 +1891,28 @@ int main(int argc, char* argv[]) {
     API_turnLeft();
 	mypos.dir = north;								//方角を初期化
     API_clearAllColor();
-    get_nextdir(GOAL_X, GOAL_Y,MASK_SECOND,&mypos.dir);
+    //get_nextdir(GOAL_X, GOAL_Y,MASK_SECOND,&mypos.dir);
+    
+    make_fast_run_map_with_run_time(GOAL_X, GOAL_Y, MASK_SECOND);
+    char str[9];
+    unsigned int time;
+    map_time[GOAL_X][GOAL_Y] = 0;       
+    API_clearAllText();
+    for(int j = 15; j >= 0; j--)						//迷路の大きさ分ループ(x座標)
+    {
+    	for(int i = 0; i < MAZESIZE_X; i++)					//迷路の大きさ分ループ(y座標)
+    	{
+            time = map_time[i][j];       
+            fprintf(stderr, "%u   ", time);
+            fflush(stderr);
+            time /= 1000;
+            sprintf(str, "%u", time);
+            API_setText(i, j, str);
+        }
+        fprintf(stderr, "\n");
+        fprintf(stderr, "\n");
+        fflush(stderr);
+    }
 
     /*
 	mypos.x = mypos.y = 7;							//座標を初期化
