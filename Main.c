@@ -4,6 +4,8 @@
 
 #define MAZESIZE_X	(16)		//$BLBO)$NBg$-$5(B(MAZESIZE_X * MAZESIZE_Y)$BLBO)(B
 #define MAZESIZE_Y	(16)		//$BLBO)$NBg$-$5(B(MAZESIZE_X * MAZESIZE_Y)$BLBO)(B
+#define MAX_X	(MAZESIZE_X*2)		//$BLBO)$NBg$-$5(B(MAZESIZE_X * MAZESIZE_Y)$BLBO)(B
+#define MAX_Y	(MAZESIZE_Y*2)		//$BLBO)$NBg$-$5(B(MAZESIZE_X * MAZESIZE_Y)$BLBO)(B
 #define GOAL_X	7							//$B%4!<%k:BI8(B(x)
 #define GOAL_Y	7							//$B%4!<%k:BI8(B(y)
 
@@ -83,6 +85,10 @@ typedef enum
 	east=1,
 	south=2,
 	west=3,
+	north_east=4,
+	north_west=5,
+	south_east=6,
+	south_west=7,
 }t_direction;
 
 typedef struct
@@ -106,14 +112,16 @@ short already_passed_boolean_map[256] = {0};
 short unable_to_find_path_to_goal = 0;
 t_position		mypos;							//$B<+8J:BI8(B
 t_wall			wall[MAZESIZE_X][MAZESIZE_Y];	//$BJI$N>pJs$r3JG<$9$k9=B$BNG[Ns(B
+unsigned char  wall_naname[MAZESIZE_X*2+1][MAZESIZE_Y*2+1];	//$BJI$N>pJs$r3JG<$9$k9=B$BNG[Ns(B
 unsigned char	map[MAZESIZE_X][MAZESIZE_Y];	//$BJb?t%^%C%W(B
+unsigned short	map_naname[MAZESIZE_X*2+1][MAZESIZE_Y*2+1];	//$BJb?t%^%C%W(B
 unsigned int	map_time[MAZESIZE_X][MAZESIZE_Y];	//$BJb?t%^%C%W(B
 //short shortest_route_action[256] = {M_REAR}; // $B?J$`!&:8!&1&$J$I$N8~$-$GA0?J!&2sE>$rI=8=(B
 short shortest_route_action[256]; // $B?J$`!&:8!&1&$J$I$N8~$-$GA0?J!&2sE>$rI=8=(B
 float shortest_route_action_times[256]; // $B?t;z$GEv$F$O$^$k9TF0(B($BA0?J!&2sE>(B)$B$N2s?t$rI=8=(B
 short diagonal_route_action[256]; // $B?J$`!&:8!&1&$J$I$N8~$-$GA0?J!&2sE>$rI=8=(B
 float diagonal_route_action_times[256]; // $B?t;z$GEv$F$O$^$k<P$a9TF0(B($BA0?J!&2sE>(B)$B$N2s?t$rI=8=(B
-//unsigned int		timer;							//1mS$B$4$H$K%+%&%s%H%"%C%W$5$l$kJQ?t(B.
+unsigned short prioritize_straight_count=1;							//1mS$B$4$H$K%+%&%s%H%"%C%W$5$l$kJQ?t(B.
 
 
 
@@ -135,6 +143,22 @@ void init_map(int x, int y)
 
 
 
+void init_map_naname(int x, int y)
+{
+//$BLBO)$NJb?t(BMap$B$r=i4|2=$9$k!#A4BN$r(B0xff$B!"0z?t$N:BI8(Bx,y$B$O(B0$B$G=i4|2=$9$k(B
+	int i,j;
+	for(i = 0; i < MAZESIZE_X*2+1; i++)		//$BLBO)$NBg$-$5J,%k!<%W(B(x$B:BI8(B)
+	{
+		for(j = 0; j < MAZESIZE_Y*2+1; j++)	//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
+		{
+			map_naname[i][j] = 19999;			//$B$9$Y$F(B999$B$GKd$a$k(B
+		}
+	}
+	map_naname[x*2+1][y*2+1] = 0;						//$B%4!<%k:BI8$NJb?t$r#0$K@_Dj(B
+}
+
+
+
 void init_map_time(int x, int y)
 {
 //$BLBO)$NJb?t(BMap$B$r=i4|2=$9$k!#A4BN$r(B0xff$B!"0z?t$N:BI8(Bx,y$B$O(B0$B$G=i4|2=$9$k(B
@@ -143,8 +167,8 @@ void init_map_time(int x, int y)
 	{
 		for(j = 0; j < MAZESIZE_Y; j++)	//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
 		{
-			map_time[i][j] = 999;			//$B$9$Y$F(B255$B$GKd$a$k(B
-            API_setText(i, j, "999");
+			map_time[i][j] = 9999;			//$B$9$Y$F(B255$B$GKd$a$k(B
+            API_setText(i, j, "9999");
 		}
 	}
 	map[x][y] = 0;						//$B%4!<%k:BI8$NJb?t$r#0$K@_Dj(B
@@ -244,6 +268,330 @@ void make_map(int x, int y, int mask)	//$BJb?t%^%C%W$r:n@.$9$k(B
 
 
 
+void prioritize_straight_cost(short x, short y, t_direction dir, short weight) {
+    //prioritize_straight_count+=10;
+    prioritize_straight_count*=6;
+    if (prioritize_straight_count > MAZESIZE_X*2+40) {
+        prioritize_straight_count = MAZESIZE_X*2+40;
+    }
+    //weight -= 10;
+    weight -= 15;
+    if (weight <= 0){
+        weight = 3;
+    }
+    switch(dir) {
+        case north:
+            if(y < MAX_Y)						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x][y+1] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if((map_naname[x][y] + weight) < map_naname[x][y+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x][y+1] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x, y+1, north, weight);
+                    }
+            	}
+            }
+            break;
+
+        case north_east:
+            if((y < MAX_Y) && (x < MAX_X))						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x+1][y+1] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if((map_naname[x][y] + weight) < map_naname[x+1][y+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x+1][y+1] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x+1, y+1, north_east, weight);
+                    }
+            	}
+            }
+            break;
+
+        case north_west:
+            if((y < MAX_Y) && (x > 0))						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x-1][y+1] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if ((map_naname[x][y] + weight) < map_naname[x-1][y+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x-1][y+1] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x-1, y+1, north_west, weight);
+                    }
+            	}
+            }
+            break;
+
+        case south:
+            if(y > 0) 						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x][y-1] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if ((map_naname[x][y] + weight) < map_naname[x][y-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x][y-1] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x, y-1, south, weight);
+                    }
+            	}
+            }
+            break;
+
+        case south_east:
+            if((y > 0) && (x < MAZESIZE_X))						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x+1][y-1] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if ((map_naname[x][y] + weight) < map_naname[x+1][y-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x+1][y-1] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x+1, y-1, south_east, weight);
+                    }
+            	}
+            }
+            break;
+
+        case south_west:
+            if((y > 0) && (x > 0))						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x-1][y-1] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if ((map_naname[x][y] + weight) < map_naname[x-1][y-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x-1][y-1] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x-1, y-1, south_west, weight);
+                    }
+            	}
+            }
+            break;
+
+        case east:
+            if(x < MAZESIZE_X) 						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x+1][y] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if ((map_naname[x][y] + weight) < map_naname[x+1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x+1][y] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x+1, y, east, weight);
+                    }
+            	}
+            }
+            break;
+
+        case west:
+            if(x > 0) 						//$BHO0O%A%'%C%/(B
+            {
+            	if (wall_naname[x-1][y] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+            		if ((map_naname[x][y] + weight) < map_naname[x-1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_naname[x-1][y] = map_naname[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost(x-1, y, west, weight);
+                    }
+            	}
+            }
+            break;
+
+    }
+}
+
+
+void make_map_naname(int x, int y)	//$BJb?t%^%C%W$r:n@.$9$k(B
+{
+//$B:BI8(Bx,y$B$r%4!<%k$H$7$?Jb?t(BMap$B$r:n@.$9$k!#(B
+//$BC5:wMQ$NJb?t(BMap$B$r:n$k$+!":GC;Av9T$NJb?t(BMap$B$r:n$k$+$,@Z$jBX$o$k(J\(B
+
+	short i,j;
+	t_bool change_flag;										//Map$B:n@.=*N;$r8+6K$a$k$?$a$N%U%i%0(B
+
+    short max_x = MAZESIZE_X*2;
+    short max_y = MAZESIZE_Y*2;
+    short s_weight = MAZESIZE_X*2+45;
+    short n_weight = MAZESIZE_X*2+50;
+    short straight_weight, naname_weight;
+	init_map_naname(x,y);											//Map$B$r=i4|2=$9$k(B
+	do
+	{
+		change_flag = false;								//$BJQ99$,$J$+$C$?>l9g$K$O%k!<%W$rH4$1$k(B
+		for(i = 0; i < max_x+1; i++)						//$BLBO)$NBg$-$5J,%k!<%W(B(x$B:BI8(B)
+		{
+			for(j = 0; j < max_y+1; j++)					//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
+			{
+				if(map_naname[i][j] == 19999)						//999$B$N>l9g$O<!$X(B
+				{
+					continue;
+				}
+				
+				if(j < max_y)						//$BHO0O%A%'%C%/(B
+				{
+					if( wall_naname[i][j+1] == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+					{
+                        if (prioritize_straight_count>1) {
+                            straight_weight = s_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            straight_weight = s_weight;
+                        }
+
+                        //if ((map_naname[i][j] + straight_weight) < map_naname[i][j+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						if(map_naname[i][j+1] == 19999)				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i][j+1] = map_naname[i][j] + straight_weight;	//$BCM$rBeF~(B
+                            prioritize_straight_cost(i, j+1, north, straight_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+				}
+			
+				if(i < max_x)						//$BHO0O%A%'%C%/(B
+				{
+					if( wall_naname[i+1][j] == NOWALL)	//$BJI$,$J$1$l$P(B
+					{
+                        if (prioritize_straight_count>1) {
+                            straight_weight = s_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            straight_weight = s_weight;
+                        }
+						if(map_naname[i+1][j] == 19999)				//$BCM$,F~$C$F$$$J$1$l$P(B
+                        //if ((map_naname[i][j] + straight_weight) < map_naname[i+1][j])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i+1][j] = map_naname[i][j] + straight_weight;	//$BCM$rBeF~(B
+                            prioritize_straight_cost(i+1, j, east, straight_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+				}
+				if((j < max_y) && (i < max_x))						//$BHO0O%A%'%C%/(B
+                {
+					if( wall_naname[i+1][j+1] == NOWALL)	//$BJI$,$J$1$l$P(B
+					{
+                        if (prioritize_straight_count>1) {
+                            naname_weight = n_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            naname_weight = n_weight;
+                        }
+						if(map_naname[i+1][j+1] == 19999)				//$BCM$,F~$C$F$$$J$1$l$P(B
+                        //if ((map_naname[i][j] + naname_weight) < map_naname[i+1][j+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i+1][j+1] = map_naname[i][j] + naname_weight;	//$BCM$rBeF~(B
+                            prioritize_straight_cost(i+1, j+1, north_east, naname_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+                }
+			
+				if(j > 0)									//$BHO0O%A%'%C%/(B
+				{
+					if( wall_naname[i][j-1] == NOWALL)//$BJI$,$J$1$l$P(B
+					{
+                        if (prioritize_straight_count>1) {
+                            straight_weight = s_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            straight_weight = s_weight;
+                        }
+						if(map_naname[i][j-1] == 19999)				//$BCM$,F~$C$F$$$J$1$l$P(B
+                        //if ((map_naname[i][j] + straight_weight) < map_naname[i][j-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i][j-1] = map_naname[i][j] + straight_weight;	//$BCM$rBeF~(B
+                            prioritize_straight_cost(i, j-1, south, straight_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+				}
+			
+				if(i > 0)									//$BHO0O%A%'%C%/(B
+				{
+					if( wall_naname[i-1][j] == NOWALL)	//$BJI$,$J$1$l$P(B
+					{
+                        if (prioritize_straight_count>1) {
+                            straight_weight = s_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            straight_weight = s_weight;
+                        }
+						if(map_naname[i-1][j] == 19999)				//$BCM$,F~$C$F$$$J$1$l$P(B
+                        //if ((map_naname[i][j] + straight_weight) < map_naname[i-1][j])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i-1][j] = map_naname[i][j] + straight_weight;	//$BCM$rBeF~(B	
+                            prioritize_straight_cost(i-1, j, west, straight_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+				}
+
+
+				if((i > 0) && (j>0))									//$BHO0O%A%'%C%/(B
+                {
+					if( wall_naname[i-1][j-1] == NOWALL)	//$BJI$,$J$1$l$P(B
+					{
+                        if (prioritize_straight_count>1) {
+                            naname_weight = n_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            naname_weight = n_weight;
+                        }
+                        //if ((map_naname[i][j] + naname_weight) < map_naname[i-1][j-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						if(map_naname[i-1][j-1] == 19999)				//$BCM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i-1][j-1] = map_naname[i][j] + naname_weight;	//$BCM$rBeF~(B	
+                            prioritize_straight_cost(i-1, j-1, south_west, naname_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+                }
+
+				if((j < max_y) && (i > 0))						//$BHO0O%A%'%C%/(B
+                {
+					if( wall_naname[i-1][j+1] == NOWALL)	//$BJI$,$J$1$l$P(B
+					{
+                        if (prioritize_straight_count>1) {
+                            naname_weight = n_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            naname_weight = n_weight;
+                        }
+                        //if ((map_naname[i][j] + naname_weight) < map_naname[i-1][j+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						if(map_naname[i-1][j+1] == 19999)				//$BCM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i-1][j+1] = map_naname[i][j] + naname_weight;	//$BCM$rBeF~(B
+                            prioritize_straight_cost(i-1, j+1, north_west, naname_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+                }
+
+				if((j > 0) && (i < max_x))						//$BHO0O%A%'%C%/(B
+                {
+					if( wall_naname[i+1][j-1] == NOWALL)	//$BJI$,$J$1$l$P(B
+					{
+                        if (prioritize_straight_count>1) {
+                            naname_weight = n_weight - prioritize_straight_count;
+                            prioritize_straight_count = 1;
+                        } else {
+                            naname_weight = n_weight;
+                        }
+                        //if ((map_naname[i][j] + naname_weight) < map_naname[i+1][j-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+						if(map_naname[i+1][j-1] == 19999)				//$BCM$,F~$C$F$$$J$1$l$P(B
+						{
+							map_naname[i+1][j-1] = map_naname[i][j] + naname_weight;	//$BCM$rBeF~(B
+                            prioritize_straight_cost(i+1, j-1, south_east, naname_weight);
+							change_flag = true;				//$BCM$,99?7$5$l$?$3$H$r<($9(B
+						}
+					}
+                }
+				
+			}
+			
+		}
+		
+	}while(change_flag == true);	//$BA4BN$r:n$j=*$o$k$^$GBT$D(B
+}
+
+
+
 void check_and_set_wall(int x, int y, int is_wall, char direction)
 {
     if(is_wall) {
@@ -291,15 +639,27 @@ void set_wall(int x, int y)	//$BJI>pJs$r5-O?(B
 	}
 	
 	wall[x][y].north = n_write;	//$B<B:]$KJI>pJs$r=q$-9~$_(B
+    //wall_naname[(x*2)+2][(y*2)+2] = n_write; // $BKL<P<P$a1&(B
+    //wall_naname[(x*2)+1][(y*2)+2] = n_write; // $BKL(B
+    //wall_naname[x*2][(y*2)+2] = n_write;     // $BKL<P<P$a:8(B
     check_and_set_wall(x,y,n_write,'n');	
 
     wall[x][y].south = s_write;	//$B<B:]$KJI>pJs$r=q$-9~$_(B
-    check_and_set_wall(x,y,s_write,'s');	
+    //wall_naname[(x*2)+2][y*2] = s_write;  // $BFn<P<P$a1&(B
+    //wall_naname[(x*2)+1][y*2] = s_write;  // $BFn(B
+    //wall_naname[x*2][y*2] = s_write;      // $BFn<P<P$a:8(B
+    //check_and_set_wall(x,y,s_write,'s');	
 
 	wall[x][y].east  = e_write;	//$B<B:]$KJI>pJs$r=q$-9~$_(B
+    //wall_naname[(x*2)+2][y*2+2] = e_write;   // $BEl<P<P$a>e(B
+    //wall_naname[(x*2)+2][(y*2)+1] = e_write; // $BEl(B
+    //wall_naname[(x*2)+2][y*2] = e_write;     // $BEl<P<P$a2<(B
     check_and_set_wall(x,y,e_write,'e');	
 
 	wall[x][y].west  = w_write;	//$B<B:]$KJI>pJs$r=q$-9~$_(B
+    //wall_naname[x*2][(y*2)+2] = w_write;  // $B@><P<P$a>e(B  
+    //wall_naname[x*2][(y*2)+1] = w_write;  // $B@>(B
+    //wall_naname[x*2][y*2] = w_write;      // $B@><P<P$a2<(B
     check_and_set_wall(x,y,w_write,'w');	
 	
 	if(y < MAZESIZE_Y-1)				//$BHO0O%A%'%C%/(B
@@ -379,6 +739,102 @@ int get_priority(int x, int y, t_direction dir)	//$B$=$N%^%9$N>pJs$+$i!"M%@hEY$
 	return priority;							//$BM%@hEY$rJV$9(B
 	
 }
+
+
+
+int get_nextdir_naname(int x, int y, int mask, t_direction *dir)	
+{
+	//$B%4!<%k:BI8(Bx,y$B$K8~$+$&>l9g!":#$I$A$i$K9T$/$Y$-$+$rH=CG$9$k!#(B
+	//$BC5:w!":GC;$N@Z$jBX$($N$?$a$N(Bmask$B$r;XDj!"(Bdir$B$OJ}3Q$r<($9(B
+	int little,priority,tmp_priority;								//$B:G>.$NCM$rC5$9$?$a$K;HMQ$9$kJQ?t(B
+ 
+	//make_map(x,y,mask);												//$BJb?t(BMap$B@8@.(B
+	little = 19999;													//$B:G>.Jb?t$r(B255$BJb(B(map$B$,(Bunsigned char$B7?$J$N$G(B)$B$K@_Dj(B	
+
+	priority = 0;													//$BM%@hEY$N=i4|CM$O(B0
+	
+		//mask$B$N0UL#$O(Bstatic_parameter.h$B$r;2>H(B
+	if( wall_naname[mypos.x*2+1][mypos.y*2+2] == NOWALL)			//$BKL$KJI$,$J$1$l$P(B
+	{
+		tmp_priority = get_priority(mypos.x, mypos.y + 1, north);	//$BM%@hEY$r;;=P(B
+		if(map_naname[mypos.x*2+1][(mypos.y+1)*2+1] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_naname[mypos.x*2+1][(mypos.y+1)*2+1];						//$B$R$H$^$:KL$,Jb?t$,>.$5$$;v$K$9$k(B
+			*dir = north;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_naname[mypos.x*2+1][(mypos.y+1)*2+1] == little)					//$BJb?t$,F1$8>l9g$OM%@hEY$+$iH=CG$9$k(B
+		{
+			if(priority < tmp_priority )							//$BM%@hEY$rI>2A(B
+			{
+				*dir = north;										//$BJ}8~$r99?7(B
+				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
+			}
+		}
+	}
+	
+	if( wall_naname[mypos.x*2+2][mypos.y*2+1] == NOWALL)				//$BEl$KJI$,$J$1$l$P(B
+	{
+		tmp_priority = get_priority(mypos.x + 1, mypos.y, east);	//$BM%@hEY$r;;=P(B
+		if(map_naname[(mypos.x + 1)*2+1][mypos.y*2+1] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_naname[(mypos.x+1)*2+1][mypos.y*2+1];						//$B$R$H$^$:El$,Jb?t$,>.$5$$;v$K$9$k(B
+			*dir = east;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_naname[(mypos.x + 1)*2+1][mypos.y*2+1] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$+$iH=CG(B
+		{
+			if(priority < tmp_priority)								//$BM%@hEY$rI>2A(B
+			{
+				*dir = east;										//$BJ}8~$rJ]B8(B
+				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
+			}
+		}
+	}
+	
+	if( wall[mypos.x*2+1][mypos.y*2] == NOWALL)			//$BFn$KJI$,$J$1$l$P(B
+	{
+		tmp_priority = get_priority(mypos.x, mypos.y - 1, south);	//$BM%@hEY$r;;=P(B
+		if(map_naname[mypos.x*2+1][(mypos.y - 1)*2+1] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_naname[mypos.x*2+1][(mypos.y-1)*2+1];						//$B$R$H$^$:Fn$,Jb?t$,>.$5$$;v$K$9$k(B
+			*dir = south;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_naname[mypos.x*2+1][(mypos.y - 1)*2+1] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$GI>2A(B
+		{
+			if(priority < tmp_priority)								//$BM%@hEY$rI>2A(B
+			{
+				*dir = south;										//$BJ}8~$rJ]B8(B
+				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
+			}
+		}
+	}
+	
+	if( wall[mypos.x*2][mypos.y*2+1] == NOWALL)				//$B@>$KJI$,$J$1$l$P(B
+	{
+		tmp_priority = get_priority(mypos.x - 1, mypos.y, west);	//$BM%@hEY$r;;=P(B
+		if(map_naname[(mypos.x-1)*2+1][mypos.y*2+1] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_naname[(mypos.x-1)*2+1][mypos.y*2+1];						//$B@>$,Jb?t$,>.$5$$(B
+			*dir = west;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_naname[(mypos.x - 1)*2+1][mypos.y*2+1] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$GI>2A(B
+		{
+			*dir = west;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+	}
+
+    if(little == 19999) {
+	unable_to_find_path_to_goal = 1;
+	return stop;
+    }
+
+	return ( (int)( ( 4 + *dir - mypos.dir) % 4 ) );				//$B$I$C$A$K8~$+$&$Y$-$+$rJV$9!#(B
+}
+
 
 
 int get_nextdir(int x, int y, int mask, t_direction *dir)	
@@ -1892,27 +2348,72 @@ int main(int argc, char* argv[]) {
 	mypos.dir = north;								//$BJ}3Q$r=i4|2=(B
     API_clearAllColor();
     //get_nextdir(GOAL_X, GOAL_Y,MASK_SECOND,&mypos.dir);
-    
-    make_fast_run_map_with_run_time(GOAL_X, GOAL_Y, MASK_SECOND);
-    char str[9];
-    unsigned int time;
-    map_time[GOAL_X][GOAL_Y] = 0;       
-    API_clearAllText();
+    for(int j = 0; j < MAZESIZE_Y; j++)						//$BLBO)$NBg$-$5J,%k!<%W(B(x$B:BI8(B)
+    {
+    	for(int i = 0; i < MAZESIZE_X; i++)					//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
+    	{
+            if((wall[i][j].north & MASK_SEARCH) == WALL) {
+                wall_naname[(i*2)+2][(j*2)+2] = WALL;
+                wall_naname[(i*2)+1][(j*2)+2] = WALL;
+                wall_naname[(i*2)+0][(j*2)+2] = WALL;
+            } 
+            if((wall[i][j].south & MASK_SEARCH) == WALL) {
+                wall_naname[(i*2)+2][(j*2)+0] = WALL;
+                wall_naname[(i*2)+1][(j*2)+0] = WALL;
+                wall_naname[(i*2)+0][(j*2)+0] = WALL;
+            } 
+            if((wall[i][j].east & MASK_SEARCH) == WALL) {
+                wall_naname[(i*2)+2][(j*2)+2] = WALL;
+                wall_naname[(i*2)+2][(j*2)+1] = WALL;
+                wall_naname[(i*2)+2][(j*2)+0] = WALL;
+            } 
+            if((wall[i][j].west & MASK_SEARCH) == WALL) {
+                wall_naname[(i*2)+0][(j*2)+2] = WALL;
+                wall_naname[(i*2)+0][(j*2)+1] = WALL;
+                wall_naname[(i*2)+0][(j*2)+0] = WALL;
+            } 
+        }
+    }
+
+    make_map_naname(GOAL_X, GOAL_Y);
+
+    for(int j = MAZESIZE_Y*2; j >= 0; j--)						//$BLBO)$NBg$-$5J,%k!<%W(B(x$B:BI8(B)
+    {
+    	for(int i = 0; i < MAZESIZE_X*2+1; i++)					//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
+    	{
+            if(wall_naname[i][j] == WALL) {
+                fprintf(stderr, "# ");
+                fflush(stderr);
+            } else if(wall_naname[i][j] == NOWALL) {
+                fprintf(stderr, "0 ");
+                fflush(stderr);
+            } else {
+                fprintf(stderr, "! ");
+                fflush(stderr);
+            }
+        }
+        fprintf(stderr, "\n");
+        fflush(stderr);
+    }
+
+    char str[5];
+    unsigned short weight;
     for(int j = 15; j >= 0; j--)						//$BLBO)$NBg$-$5J,%k!<%W(B(x$B:BI8(B)
     {
     	for(int i = 0; i < MAZESIZE_X; i++)					//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
     	{
-            time = map_time[i][j];       
-            fprintf(stderr, "%u   ", time);
+            weight = map_naname[i*2+1][j*2+1];       
+            fprintf(stderr, "%u   ", weight);
             fflush(stderr);
-            time /= 1000;
-            sprintf(str, "%u", time);
+            sprintf(str, "%u", weight);
             API_setText(i, j, str);
         }
         fprintf(stderr, "\n");
         fprintf(stderr, "\n");
         fflush(stderr);
     }
+
+    
 
     /*
 	mypos.x = mypos.y = 7;							//$B:BI8$r=i4|2=(B
