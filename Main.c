@@ -128,8 +128,8 @@ float shortest_route_action_times[256]; // $B?t;z$GEv$F$O$^$k9TF0(B($BA0?J!&2
 short diagonal_route_action[256]; // $B?J$`!&:8!&1&$J$I$N8~$-$GA0?J!&2sE>$rI=8=(B
 float diagonal_route_action_times[256]; // $B?t;z$GEv$F$O$^$k<P$a9TF0(B($BA0?J!&2sE>(B)$B$N2s?t$rI=8=(B
 unsigned short prioritize_straight_count=1;							//1mS$B$4$H$K%+%&%s%H%"%C%W$5$l$kJQ?t(B.
-unsigned short fast_straight_cost = (unsigned short) ZENSHIN_END_TIME;
-unsigned short fast_naname_cost = (unsigned short) NANAME_END_TIME;
+unsigned short fast_straight_cost = (unsigned short) (ZENSHIN_END_TIME*1000);
+unsigned short fast_naname_cost = (unsigned short) (NANAME_END_TIME*1000);
 
 
 
@@ -704,9 +704,9 @@ void prioritize_straight_cost_recursion(short x, short y, t_direction prev_dir, 
     //if (prioritize_straight_count > MAZESIZE_X*2+40) {
     //    prioritize_straight_count = MAZESIZE_X*2+40;
     //}
-    weight -= 10;
+    weight -= 20;
     if (weight <= 0){
-        weight = 10;
+        weight = 30;
     }
     switch(current_dir) {
         case north:
