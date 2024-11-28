@@ -121,15 +121,14 @@ t_wall			wall[MAZESIZE_X][MAZESIZE_Y];	//壁の情報を格納する構造体配列
 unsigned char  wall_naname[MAZESIZE_X*2+1][MAZESIZE_Y*2+1];	//壁の情報を格納する構造体配列
 unsigned char	map[MAZESIZE_X][MAZESIZE_Y];	//歩数マップ
 unsigned short	map_naname[MAZESIZE_X*2+1][MAZESIZE_Y*2+1];	//歩数マップ
-unsigned int	map_time[MAZESIZE_X][MAZESIZE_Y];	//歩数マップ
-//short shortest_route_action[256] = {M_REAR}; // 進む・左・右などの向きで前進・回転を表現
 short shortest_route_action[256]; // 進む・左・右などの向きで前進・回転を表現
 float shortest_route_action_times[256]; // 数字で当てはまる行動(前進・回転)の回数を表現
 short diagonal_route_action[256]; // 進む・左・右などの向きで前進・回転を表現
 float diagonal_route_action_times[256]; // 数字で当てはまる斜め行動(前進・回転)の回数を表現
-unsigned short prioritize_straight_count=1;							//1mSごとにカウントアップされる変数.
 unsigned short fast_straight_cost = (unsigned short) (ZENSHIN_END_TIME*1000);
 unsigned short fast_naname_cost = (unsigned short) (NANAME_END_TIME*1000);
+char color = 'G';
+unsigned short recusion_weight = 0;
 
 
 
@@ -150,7 +149,6 @@ void init_map(int x, int y)
 }
 
 
-
 void init_map_naname(int x, int y)
 {
 //迷路の歩数Mapを初期化する。全体を0xff、引数の座標x,yは0で初期化する
@@ -159,28 +157,10 @@ void init_map_naname(int x, int y)
 	{
 		for(j = 0; j < MAZESIZE_Y*2+1; j++)	//迷路の大きさ分ループ(y座標)
 		{
-			map_naname[i][j] = 29999;			//すべて999で埋める
+			map_naname[i][j] = 59999;			//すべて999で埋める
 		}
 	}
 	map_naname[x*2+1][y*2+1] = 0;						//ゴール座標の歩数を０に設定
-}
-
-
-
-void init_map_time(int x, int y)
-{
-//迷路の歩数Mapを初期化する。全体を0xff、引数の座標x,yは0で初期化する
-	int i,j;
-	for(i = 0; i < MAZESIZE_X; i++)		//迷路の大きさ分ループ(x座標)
-	{
-		for(j = 0; j < MAZESIZE_Y; j++)	//迷路の大きさ分ループ(y座標)
-		{
-			map_time[i][j] = 9999;			//すべて255で埋める
-            API_setText(i, j, "9999");
-		}
-	}
-	map[x][y] = 0;						//ゴール座標の歩数を０に設定
-    API_setText(x, y, "0");
 }
 
 
@@ -276,330 +256,6 @@ void make_map(int x, int y, int mask)	//歩数マップを作成する
 
 
 
-void prioritize_straight_cost(short x, short y, t_direction dir, short weight) {
-    //prioritize_straight_count+=10;
-    prioritize_straight_count*=6;
-    if (prioritize_straight_count > MAZESIZE_X*2+40) {
-        prioritize_straight_count = MAZESIZE_X*2+40;
-    }
-    //weight -= 10;
-    weight -= 15;
-    if (weight <= 0){
-        weight = 3;
-    }
-    switch(dir) {
-        case north:
-            if(y < MAX_Y)						//範囲チェック
-            {
-            	if (wall_naname[x][y+1] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if((map_naname[x][y] + weight) < map_naname[x][y+1])				//まだ値が入っていなければ
-            		{
-            			map_naname[x][y+1] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x, y+1, north, weight);
-                    }
-            	}
-            }
-            break;
-
-        case north_east:
-            if((y < MAX_Y) && (x < MAX_X))						//範囲チェック
-            {
-            	if (wall_naname[x+1][y+1] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if((map_naname[x][y] + weight) < map_naname[x+1][y+1])				//まだ値が入っていなければ
-            		{
-            			map_naname[x+1][y+1] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x+1, y+1, north_east, weight);
-                    }
-            	}
-            }
-            break;
-
-        case north_west:
-            if((y < MAX_Y) && (x > 0))						//範囲チェック
-            {
-            	if (wall_naname[x-1][y+1] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if ((map_naname[x][y] + weight) < map_naname[x-1][y+1])				//まだ値が入っていなければ
-            		{
-            			map_naname[x-1][y+1] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x-1, y+1, north_west, weight);
-                    }
-            	}
-            }
-            break;
-
-        case south:
-            if(y > 0) 						//範囲チェック
-            {
-            	if (wall_naname[x][y-1] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if ((map_naname[x][y] + weight) < map_naname[x][y-1])				//まだ値が入っていなければ
-            		{
-            			map_naname[x][y-1] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x, y-1, south, weight);
-                    }
-            	}
-            }
-            break;
-
-        case south_east:
-            if((y > 0) && (x < MAZESIZE_X))						//範囲チェック
-            {
-            	if (wall_naname[x+1][y-1] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if ((map_naname[x][y] + weight) < map_naname[x+1][y-1])				//まだ値が入っていなければ
-            		{
-            			map_naname[x+1][y-1] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x+1, y-1, south_east, weight);
-                    }
-            	}
-            }
-            break;
-
-        case south_west:
-            if((y > 0) && (x > 0))						//範囲チェック
-            {
-            	if (wall_naname[x-1][y-1] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if ((map_naname[x][y] + weight) < map_naname[x-1][y-1])				//まだ値が入っていなければ
-            		{
-            			map_naname[x-1][y-1] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x-1, y-1, south_west, weight);
-                    }
-            	}
-            }
-            break;
-
-        case east:
-            if(x < MAZESIZE_X) 						//範囲チェック
-            {
-            	if (wall_naname[x+1][y] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if ((map_naname[x][y] + weight) < map_naname[x+1][y])				//まだ値が入っていなければ
-            		{
-            			map_naname[x+1][y] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x+1, y, east, weight);
-                    }
-            	}
-            }
-            break;
-
-        case west:
-            if(x > 0) 						//範囲チェック
-            {
-            	if (wall_naname[x-1][y] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-            	{
-            		if ((map_naname[x][y] + weight) < map_naname[x-1][y])				//まだ値が入っていなければ
-            		{
-            			map_naname[x-1][y] = map_naname[x][y] + weight;	//値を代入
-                        prioritize_straight_cost(x-1, y, west, weight);
-                    }
-            	}
-            }
-            break;
-
-    }
-}
-
-
-void make_map_naname(int x, int y)	//歩数マップを作成する
-{
-//座標x,yをゴールとした歩数Mapを作成する。
-//探索用の歩数Mapを作るか、最短走行の歩数Mapを作るかが切り替わる\
-
-	short i,j;
-	t_bool change_flag;										//Map作成終了を見極めるためのフラグ
-
-    short max_x = MAZESIZE_X*2;
-    short max_y = MAZESIZE_Y*2;
-    short s_weight = MAZESIZE_X*2+45;
-    short n_weight = MAZESIZE_X*2+50;
-    short straight_weight, naname_weight;
-	init_map_naname(x,y);											//Mapを初期化する
-	do
-	{
-		change_flag = false;								//変更がなかった場合にはループを抜ける
-		for(i = 0; i < max_x+1; i++)						//迷路の大きさ分ループ(x座標)
-		{
-			for(j = 0; j < max_y+1; j++)					//迷路の大きさ分ループ(y座標)
-			{
-				if(map_naname[i][j] == 29999)						//999の場合は次へ
-				{
-					continue;
-				}
-				
-				if(j < max_y)						//範囲チェック
-				{
-					if( wall_naname[i][j+1] == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
-					{
-                        if (prioritize_straight_count>1) {
-                            straight_weight = s_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            straight_weight = s_weight;
-                        }
-
-                        //if ((map_naname[i][j] + straight_weight) < map_naname[i][j+1])				//まだ値が入っていなければ
-						if(map_naname[i][j+1] == 29999)				//まだ値が入っていなければ
-						{
-							map_naname[i][j+1] = map_naname[i][j] + straight_weight;	//値を代入
-                            prioritize_straight_cost(i, j+1, north, straight_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-				}
-			
-				if(i < max_x)						//範囲チェック
-				{
-					if( wall_naname[i+1][j] == NOWALL)	//壁がなければ
-					{
-                        if (prioritize_straight_count>1) {
-                            straight_weight = s_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            straight_weight = s_weight;
-                        }
-						if(map_naname[i+1][j] == 29999)				//値が入っていなければ
-                        //if ((map_naname[i][j] + straight_weight) < map_naname[i+1][j])				//まだ値が入っていなければ
-						{
-							map_naname[i+1][j] = map_naname[i][j] + straight_weight;	//値を代入
-                            prioritize_straight_cost(i+1, j, east, straight_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-				}
-				if((j < max_y) && (i < max_x))						//範囲チェック
-                {
-					if( wall_naname[i+1][j+1] == NOWALL)	//壁がなければ
-					{
-                        if (prioritize_straight_count>1) {
-                            naname_weight = n_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            naname_weight = n_weight;
-                        }
-						if(map_naname[i+1][j+1] == 29999)				//値が入っていなければ
-                        //if ((map_naname[i][j] + naname_weight) < map_naname[i+1][j+1])				//まだ値が入っていなければ
-						{
-							map_naname[i+1][j+1] = map_naname[i][j] + naname_weight;	//値を代入
-                            prioritize_straight_cost(i+1, j+1, north_east, naname_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-                }
-			
-				if(j > 0)									//範囲チェック
-				{
-					if( wall_naname[i][j-1] == NOWALL)//壁がなければ
-					{
-                        if (prioritize_straight_count>1) {
-                            straight_weight = s_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            straight_weight = s_weight;
-                        }
-						if(map_naname[i][j-1] == 29999)				//値が入っていなければ
-                        //if ((map_naname[i][j] + straight_weight) < map_naname[i][j-1])				//まだ値が入っていなければ
-						{
-							map_naname[i][j-1] = map_naname[i][j] + straight_weight;	//値を代入
-                            prioritize_straight_cost(i, j-1, south, straight_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-				}
-			
-				if(i > 0)									//範囲チェック
-				{
-					if( wall_naname[i-1][j] == NOWALL)	//壁がなければ
-					{
-                        if (prioritize_straight_count>1) {
-                            straight_weight = s_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            straight_weight = s_weight;
-                        }
-						if(map_naname[i-1][j] == 29999)				//値が入っていなければ
-                        //if ((map_naname[i][j] + straight_weight) < map_naname[i-1][j])				//まだ値が入っていなければ
-						{
-							map_naname[i-1][j] = map_naname[i][j] + straight_weight;	//値を代入	
-                            prioritize_straight_cost(i-1, j, west, straight_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-				}
-
-
-				if((i > 0) && (j>0))									//範囲チェック
-                {
-					if( wall_naname[i-1][j-1] == NOWALL)	//壁がなければ
-					{
-                        if (prioritize_straight_count>1) {
-                            naname_weight = n_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            naname_weight = n_weight;
-                        }
-                        //if ((map_naname[i][j] + naname_weight) < map_naname[i-1][j-1])				//まだ値が入っていなければ
-						if(map_naname[i-1][j-1] == 29999)				//値が入っていなければ
-						{
-							map_naname[i-1][j-1] = map_naname[i][j] + naname_weight;	//値を代入	
-                            prioritize_straight_cost(i-1, j-1, south_west, naname_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-                }
-
-				if((j < max_y) && (i > 0))						//範囲チェック
-                {
-					if( wall_naname[i-1][j+1] == NOWALL)	//壁がなければ
-					{
-                        if (prioritize_straight_count>1) {
-                            naname_weight = n_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            naname_weight = n_weight;
-                        }
-                        //if ((map_naname[i][j] + naname_weight) < map_naname[i-1][j+1])				//まだ値が入っていなければ
-						if(map_naname[i-1][j+1] == 29999)				//値が入っていなければ
-						{
-							map_naname[i-1][j+1] = map_naname[i][j] + naname_weight;	//値を代入
-                            prioritize_straight_cost(i-1, j+1, north_west, naname_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-                }
-
-				if((j > 0) && (i < max_x))						//範囲チェック
-                {
-					if( wall_naname[i+1][j-1] == NOWALL)	//壁がなければ
-					{
-                        if (prioritize_straight_count>1) {
-                            naname_weight = n_weight - prioritize_straight_count;
-                            prioritize_straight_count = 1;
-                        } else {
-                            naname_weight = n_weight;
-                        }
-                        //if ((map_naname[i][j] + naname_weight) < map_naname[i+1][j-1])				//まだ値が入っていなければ
-						if(map_naname[i+1][j-1] == 29999)				//値が入っていなければ
-						{
-							map_naname[i+1][j-1] = map_naname[i][j] + naname_weight;	//値を代入
-                            prioritize_straight_cost(i+1, j-1, south_east, naname_weight);
-							change_flag = true;				//値が更新されたことを示す
-						}
-					}
-                }
-				
-			}
-			
-		}
-		
-	}while(change_flag == true);	//全体を作り終わるまで待つ
-}
-
-
-
 void check_and_set_wall(int x, int y, int is_wall, char direction)
 {
     if(is_wall) {
@@ -647,27 +303,15 @@ void set_wall(int x, int y)	//壁情報を記録
 	}
 	
 	wall[x][y].north = n_write;	//実際に壁情報を書き込み
-    //wall_naname[(x*2)+2][(y*2)+2] = n_write; // 北斜斜め右
-    //wall_naname[(x*2)+1][(y*2)+2] = n_write; // 北
-    //wall_naname[x*2][(y*2)+2] = n_write;     // 北斜斜め左
     check_and_set_wall(x,y,n_write,'n');	
 
     wall[x][y].south = s_write;	//実際に壁情報を書き込み
-    //wall_naname[(x*2)+2][y*2] = s_write;  // 南斜斜め右
-    //wall_naname[(x*2)+1][y*2] = s_write;  // 南
-    //wall_naname[x*2][y*2] = s_write;      // 南斜斜め左
-    //check_and_set_wall(x,y,s_write,'s');	
+    check_and_set_wall(x,y,s_write,'s');	
 
 	wall[x][y].east  = e_write;	//実際に壁情報を書き込み
-    //wall_naname[(x*2)+2][y*2+2] = e_write;   // 東斜斜め上
-    //wall_naname[(x*2)+2][(y*2)+1] = e_write; // 東
-    //wall_naname[(x*2)+2][y*2] = e_write;     // 東斜斜め下
     check_and_set_wall(x,y,e_write,'e');	
 
 	wall[x][y].west  = w_write;	//実際に壁情報を書き込み
-    //wall_naname[x*2][(y*2)+2] = w_write;  // 西斜斜め上  
-    //wall_naname[x*2][(y*2)+1] = w_write;  // 西
-    //wall_naname[x*2][y*2] = w_write;      // 西斜斜め下
     check_and_set_wall(x,y,w_write,'w');	
 	
 	if(y < MAZESIZE_Y-1)				//範囲チェック
@@ -698,13 +342,64 @@ void set_wall(int x, int y)	//壁情報を記録
 
 
 
+void set_wall_whole_map(void) {
+    int x, y;
+    for (x=0; x<MAZESIZE_X; x++) {
+        for (y=0; y<MAZESIZE_Y; y++) {
+            mypos.x = x;
+            mypos.y = y;
+            mypos.dir = north;
+            set_wall(x,y);
+            API_setColor(x,y,'A');
+
+            API_turnLeft();
+            API_turnLeft();
+            mypos.dir = south;
+            set_wall(x,y);
+
+            API_turnLeft();
+            API_turnLeft();
+            mypos.dir = north;
+            API_moveForward();
+        }
+        if ((y == MAZESIZE_Y) && (x == MAZESIZE_X-1)) {
+            API_turnLeft();
+            for(int i =0; i<MAZESIZE_Y-1; i++) {
+                API_moveForward();
+            }
+            API_turnLeft();
+            for(int i =0; i<MAZESIZE_Y; i++) {
+                API_moveForward();
+            }
+            API_turnLeft();
+            API_turnLeft();
+            continue;
+        } 
+        if(y == MAZESIZE_Y){
+            API_turnRight();
+            API_moveForward();
+            API_turnRight();
+            for(int i =0; i<MAZESIZE_Y; i++) {
+                API_moveForward();
+            }
+            mypos.x = x;
+            mypos.y = 0;
+            mypos.dir = south;
+            set_wall(x,0);
+            API_setColor(x,y,'A');
+            API_turnRight();
+            API_turnRight();
+            continue;
+        } 
+    }
+}
+
+
+
 void prioritize_straight_cost_recursion(short x, short y, t_direction prev_dir, t_direction current_dir, short weight) {
-    //prioritize_straight_count+=10;
-    //prioritize_straight_count*=6;
-    //if (prioritize_straight_count > MAZESIZE_X*2+40) {
-    //    prioritize_straight_count = MAZESIZE_X*2+40;
-    //}
-    weight -= 20;
+    //fprintf(stderr, "\nx: %d, y: %d\n", x, y);
+    //fflush(stderr);
+    weight -= recusion_weight;
     if (weight <= 0){
         weight = 30;
     }
@@ -1279,6 +974,31 @@ void make_map_naname_recursion(int x, int y)	//歩数マップを作成する
     prioritize_straight_cost_recursion(x*2+1, y*2+1, north_west, north_west, fast_naname_cost);
     prioritize_straight_cost_recursion(x*2+1, y*2+1, south_west, south_west, fast_naname_cost);
     prioritize_straight_cost_recursion(x*2+1, y*2+1, south_west, south_west, fast_naname_cost);
+    /*
+    char str[6];
+    unsigned short score;
+    for(int j = 0; j <MAZESIZE_Y; j++)						//迷路の大きさ分ループ(x座標)
+    {
+    	for(int i = 0; i < MAZESIZE_X; i++)					//迷路の大きさ分ループ(y座標)
+    	{
+                score = map_naname[i*2+1][j*2+1];
+
+                sprintf(str, "%u", score);
+                API_setText(i, j, str);
+        }
+    }
+    for(int j = MAX_Y; j >= 0; j--)						//迷路の大きさ分ループ(x座標)
+    {
+    	for(int i = 0; i < MAX_X+1; i++)					//迷路の大きさ分ループ(y座標)
+    	{
+                score = map_naname[i][j];
+                fprintf(stderr, "x:%d,y:%d,s:%u  ", i, j, score);
+                fflush(stderr);
+        }
+                fprintf(stderr, "\n\n");
+                fflush(stderr);
+    }
+    */
 }
 
 
@@ -1341,7 +1061,7 @@ int get_nextdir_naname(int x, int y, t_direction *dir)
 	//ゴール座標x,yに向かう場合、今どちらに行くべきかを判断する。
 	int little,priority,tmp_priority;								//最小の値を探すために使用する変数
  
-	little = 29999;													//最小歩数を255歩(mapがunsigned char型なので)に設定	
+	little = 59999;													//最小歩数を255歩(mapがunsigned char型なので)に設定	
 
 	priority = 0;													//優先度の初期値は0
 	
@@ -1418,7 +1138,7 @@ int get_nextdir_naname(int x, int y, t_direction *dir)
 		}
 	}
 
-    if(little == 29999) {
+    if(little == 59999) {
 	unable_to_find_path_to_goal = 1;
 	return stop;
     }
@@ -1978,7 +1698,7 @@ void create_fast_run_slalom_map(int x, int y)
 }
 
 
-//スラローム走行の最短経路マップを作成
+//最速斜め経路用のスラローム走行の最短経路マップを作成
 void create_fast_run_diagonal_map(int x, int y)
 {
 	t_direction glob_nextdir;
@@ -1987,7 +1707,7 @@ void create_fast_run_diagonal_map(int x, int y)
     shortest_route_action[action_id] = M_FRONT;
     shortest_route_action_times[action_id] = straight_count;
 
-    API_setColor(mypos.x, mypos.y, 'G');
+    API_setColor(mypos.x, mypos.y, color);
 	//現在の向きから、次に行くべき方向へ向く
 	switch(get_nextdir_naname(x,y,&glob_nextdir))	//次に行く方向を戻り値とする関数を呼ぶ
 	{
@@ -2034,7 +1754,7 @@ void create_fast_run_diagonal_map(int x, int y)
 	}
 
 	while((mypos.x != x) || (mypos.y != y)){	//ゴールするまで繰り返す
-        API_setColor(mypos.x, mypos.y, 'G');
+        API_setColor(mypos.x, mypos.y, color);
 		switch(get_nextdir_naname(x,y,&glob_nextdir))	//次に行く方向を戻り値とする関数を呼ぶ
 		{
 			case front:	//直線をまとめて走るようにする
@@ -2106,7 +1826,7 @@ void create_fast_run_diagonal_map(int x, int y)
 
 		}
 	}
-    API_setColor(mypos.x, mypos.y, 'G');
+    API_setColor(mypos.x, mypos.y, color);
     shortest_route_action[action_id] = M_FRONT;
     shortest_route_action_times[action_id] = straight_count + 0.5;
     action_id++;
@@ -2610,9 +2330,12 @@ unsigned int calculate_fast_run_slalom_time_with_map(int x, int y)
 
 unsigned int calculate_max_fast_run_diagonal_time_with_map(int x, int y)
 {
-    fprintf(stderr, "start create fast slalom map\n");
+    fprintf(stderr, "start create fast recursion map\n");
     fflush(stderr);
-    create_fast_run_slalom_map(x, y);
+    make_map_naname_recursion(x, y);
+    fprintf(stderr, "start create fast diagonal slalom map\n");
+    fflush(stderr);
+    create_fast_run_diagonal_map(x, y);
 
     fprintf(stderr, "start convert fast slalom map to diagonal_route\n");
     fflush(stderr);
@@ -2861,6 +2584,8 @@ int main(int argc, char* argv[]) {
     API_setColor(0, 0, 'G');
     API_setText(0, 0, "abc");
 
+    //set_wall_whole_map();
+    ///*
 	mypos.x = mypos.y = 0;							//座標を初期化
 	mypos.dir = north;								//方角を初期化
     set_wall(mypos.x,mypos.y);					//壁をセット
@@ -2882,8 +2607,11 @@ int main(int argc, char* argv[]) {
 
     API_turnLeft();
     API_turnLeft();
+    //*/
+	mypos.x = mypos.y = 0;							//座標を初期化
 	mypos.dir = north;								//方角を初期化
     API_clearAllColor();
+
     //get_nextdir(GOAL_X, GOAL_Y,MASK_SECOND,&mypos.dir);
 
     // 壁と柱のマップを作成
@@ -2913,6 +2641,10 @@ int main(int argc, char* argv[]) {
             } 
         }
     }
+    //wall_naname[(8*2)+2][(6*2)+2] = WALL;
+    //wall_naname[(8*2)+1][(6*2)+2] = WALL;
+    //wall_naname[(8*2)+0][(6*2)+2] = WALL;
+
     // 壁と柱を表示
     for(int j = MAZESIZE_Y*2; j >= 0; j--)						//迷路の大きさ分ループ(x座標)
     {
@@ -2933,17 +2665,53 @@ int main(int argc, char* argv[]) {
         fflush(stderr);
     }
 
-    //make_map_naname(GOAL_X, GOAL_Y);
 
     
     // recusionで最速斜めコストマップ作成
 	//init_map_naname(GOAL_X,GOAL_Y);											//Mapを初期化する
     //prioritize_straight_cost_recursion(GOAL_X*2+1, GOAL_Y*2+1, north, north, fast_straight_cost);
     //prioritize_straight_cost_recursion(GOAL_X*2+1, GOAL_Y*2+1, south, south, fast_straight_cost);
-    make_map_naname_recursion(GOAL_X, GOAL_Y);
-    create_fast_run_diagonal_map(GOAL_X, GOAL_Y);
+    //make_map_naname_recursion(GOAL_X, GOAL_Y);
+    //create_fast_run_diagonal_map(GOAL_X, GOAL_Y);
+    unsigned int timer;
+    recusion_weight =10;
+    color = 'G';
+    timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
+    fprintf(stderr, "\n\nfirst total runtime: %u\n\n", timer);
+    fflush(stderr);
 
-    ///*
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    recusion_weight =20;
+    color = 'B';
+    timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
+    fprintf(stderr, "\n\nsecond total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    recusion_weight =30;
+    color = 'C';
+    timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
+    fprintf(stderr, "\n\nthird total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    recusion_weight =40;
+    color = 'y';
+    timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
+    fprintf(stderr, "\n\nfourth total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    recusion_weight =50;
+    color = 'o';
+    timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
+    fprintf(stderr, "\n\nfifth total runtime: %u\n\n", timer);
+    fflush(stderr);
+    /*
     // コストマップを表示
     char str[5];
     unsigned short weight;
