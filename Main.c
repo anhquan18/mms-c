@@ -443,7 +443,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].east & MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x+1][y])				//まだ値が入っていなければ
             		{
             			map_slalom[x+1][y] = map_slalom[x][y] + weight;	//値を代入
@@ -456,7 +456,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].west & MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x-1][y])				//まだ値が入っていなければ
             		{
             			map_slalom[x-1][y] = map_slalom[x][y] + weight;	//値を代入
@@ -488,7 +488,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].west& MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x-1][y])				//まだ値が入っていなければ
             		{
             			map_slalom[x-1][y] = map_slalom[x][y] + weight;	//値を代入
@@ -501,7 +501,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].east& MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x+1][y])				//まだ値が入っていなければ
             		{
             			map_slalom[x+1][y] = map_slalom[x][y] + weight;	//値を代入
@@ -531,7 +531,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].south& MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x][y-1])				//まだ値が入っていなければ
             		{
             			map_slalom[x][y-1] = map_slalom[x][y] + weight;	//値を代入
@@ -544,7 +544,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].north& MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x][y+1])				//まだ値が入っていなければ
             		{
             			map_slalom[x][y+1] = map_slalom[x][y] + weight;	//値を代入
@@ -574,7 +574,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].north& MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x][y+1])				//まだ値が入っていなければ
             		{
             			map_slalom[x][y+1] = map_slalom[x][y] + weight;	//値を代入
@@ -587,7 +587,7 @@ void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction pre
             {
             	if ((wall[x][y].south& MASK_SEARCH) == NOWALL)//壁がなければ(maskの意味はstatic_parametersを参照)
             	{
-                    weight = DAIKEI_END_TIME; // 向きを90度回転したため、45度の重みに設定
+                    weight = DAIKEI_END_TIME*1.5; // 向きを90度回転したため、45度の重みに設定
             		if((map_slalom[x][y] + weight) <= map_slalom[x][y-1])				//まだ値が入っていなければ
             		{
             			map_slalom[x][y-1] = map_slalom[x][y] + weight;	//値を代入
@@ -3035,14 +3035,10 @@ int main(int argc, char* argv[]) {
 
     
     // recusionで最速斜めコストマップ作成
-	//init_map_naname(GOAL_X,GOAL_Y);											//Mapを初期化する
-    //prioritize_straight_cost_recursion(GOAL_X*2+1, GOAL_Y*2+1, north, north, fast_straight_cost);
-    //prioritize_straight_cost_recursion(GOAL_X*2+1, GOAL_Y*2+1, south, south, fast_straight_cost);
-    //make_map_naname_recursion(GOAL_X, GOAL_Y);
-    //create_fast_run_diagonal_map(GOAL_X, GOAL_Y);
     unsigned int timer;
     recusion_weight =10;
     color = 'G';
+    /*
     timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
     fprintf(stderr, "\n\nfirst total runtime: %u\n\n", timer);
     fflush(stderr);
@@ -3078,11 +3074,27 @@ int main(int argc, char* argv[]) {
     timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
     fprintf(stderr, "\n\nfifth total runtime: %u\n\n", timer);
     fflush(stderr);
+    //*/
+
+    ///*
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    color = 'o';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 0);
+    fprintf(stderr, "\n\nfast slalom default 1 total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    color = 'y';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 0);
+    fprintf(stderr, "\n\nfast slalom default 2 total runtime: %u\n\n", timer);
+    fflush(stderr);
 
 	mypos.x = mypos.y = 0;							//座標を初期化
 	mypos.dir = north;								//方角を初期化
     recusion_weight =10;
-    color = 'r';
+    color = 'c';
     timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
     fprintf(stderr, "\n\nfast slalom1 total runtime: %u\n\n", timer);
     fflush(stderr);
@@ -3090,26 +3102,43 @@ int main(int argc, char* argv[]) {
 	mypos.x = mypos.y = 0;							//座標を初期化
 	mypos.dir = north;								//方角を初期化
     recusion_weight =20;
-    color = 'r';
+    color = 'G';
     timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
     fprintf(stderr, "\n\nfast slalom2 total runtime: %u\n\n", timer);
     fflush(stderr);
 
 	mypos.x = mypos.y = 0;							//座標を初期化
 	mypos.dir = north;								//方角を初期化
-    recusion_weight =10;
-    color = 'r';
-    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 0);
-    fprintf(stderr, "\n\nfast slalom default 1 total runtime: %u\n\n", timer);
+    recusion_weight =30;
+    color = 'Y';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
+    fprintf(stderr, "\n\nfast slalom3 total runtime: %u\n\n", timer);
     fflush(stderr);
 
 	mypos.x = mypos.y = 0;							//座標を初期化
 	mypos.dir = north;								//方角を初期化
-    recusion_weight =20;
-    color = 'r';
-    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 0);
-    fprintf(stderr, "\n\nfast slalom default 2 total runtime: %u\n\n", timer);
+    recusion_weight =40;
+    color = 'R';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
+    fprintf(stderr, "\n\nfast slalom4 total runtime: %u\n\n", timer);
     fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    recusion_weight =50;
+    color = 'B';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
+    fprintf(stderr, "\n\nfast slalom5 total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//座標を初期化
+	mypos.dir = north;								//方角を初期化
+    recusion_weight =60;
+    color = 'w';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
+    fprintf(stderr, "\n\nfast slalom6 total runtime: %u\n\n", timer);
+    fflush(stderr);
+    //*/
 
     /*
     // コストマップを表示
