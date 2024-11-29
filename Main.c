@@ -120,6 +120,7 @@ t_position		mypos;							//$B<+8J:BI8(B
 t_wall			wall[MAZESIZE_X][MAZESIZE_Y];	//$BJI$N>pJs$r3JG<$9$k9=B$BNG[Ns(B
 unsigned char  wall_naname[MAZESIZE_X*2+1][MAZESIZE_Y*2+1];	//$BJI$N>pJs$r3JG<$9$k9=B$BNG[Ns(B
 unsigned char	map[MAZESIZE_X][MAZESIZE_Y];	//$BJb?t%^%C%W(B
+unsigned short	map_slalom[MAZESIZE_X][MAZESIZE_Y];	//$BJb?t%^%C%W(B
 unsigned short	map_naname[MAZESIZE_X*2+1][MAZESIZE_Y*2+1];	//$BJb?t%^%C%W(B
 short shortest_route_action[256]; // $B?J$`!&:8!&1&$J$I$N8~$-$GA0?J!&2sE>$rI=8=(B
 float shortest_route_action_times[256]; // $B?t;z$GEv$F$O$^$k9TF0(B($BA0?J!&2sE>(B)$B$N2s?t$rI=8=(B
@@ -147,6 +148,23 @@ void init_map(int x, int y)
 	map[x][y] = 0;						//$B%4!<%k:BI8$NJb?t$r#0$K@_Dj(B
     API_setText(x, y, "0");
 }
+
+
+
+void init_map_fast_slalom(int x, int y)
+{
+//$BLBO)$NJb?t(BMap$B$r=i4|2=$9$k!#A4BN$r(B0xff$B!"0z?t$N:BI8(Bx,y$B$O(B0$B$G=i4|2=$9$k(B
+	int i,j;
+	for(i = 0; i < MAZESIZE_X; i++)		//$BLBO)$NBg$-$5J,%k!<%W(B(x$B:BI8(B)
+	{
+		for(j = 0; j < MAZESIZE_Y; j++)	//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
+		{
+			map_slalom[i][j] = 59999;			//$B$9$Y$F(B999$B$GKd$a$k(B
+		}
+	}
+	map_slalom[x][y] = 0;						//$B%4!<%k:BI8$NJb?t$r#0$K@_Dj(B
+}
+
 
 
 void init_map_naname(int x, int y)
@@ -393,6 +411,194 @@ void set_wall_whole_map(void) {
         } 
     }
 }
+
+
+
+void prioritize_straight_cost_slalom_recursion(short x, short y, t_direction prev_dir, t_direction current_dir, short weight) {
+    //fprintf(stderr, "\nx: %d, y: %d\n", x, y);
+    //fflush(stderr);
+    weight -= recusion_weight;
+    if (weight <= 0){
+        weight = 30;
+    }
+    switch(current_dir) {
+        case north:
+            if(y < MAZESIZE_Y)	// $BA0?JF0:n(B
+            {
+            	if ((wall[x][y].north & MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    if(prev_dir != current_dir) { // $B8~$-$,JQ$o$C$?>l9g!"2sE>$N=E$_$+$iD>@~$N=E$_$K%j%;%C%H(B
+                        weight = fast_straight_cost;
+                    }
+            		if((map_slalom[x][y] + weight) <= map_slalom[x][y+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x][y+1] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x, y+1, north, north, weight);
+                    }
+            	}
+            }
+
+
+            if(x < MAZESIZE_X)	// $B1&(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].east & MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x+1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x+1][y] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x+1, y, north, east, weight);
+                    }
+            	}
+            }
+
+            if(x > 0)	// $B:8(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].west & MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x-1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x-1][y] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x-1, y, north, west, weight);
+                    }
+            	}
+            }
+
+            break;
+
+        case south:
+            if(y > 0) 						//$BHO0O%A%'%C%/(B
+            {
+            	if ((wall[x][y].south& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    if(prev_dir != current_dir) { // $B8~$-$,JQ$o$C$?>l9g!"2sE>$N=E$_$+$iD>@~$N=E$_$K%j%;%C%H(B
+                        weight = fast_straight_cost;
+                    }
+            		if ((map_slalom[x][y] + weight) <= map_slalom[x][y-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x][y-1] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x, y-1, south, south, weight);
+                    }
+            	}
+            }
+
+
+            if(x > 0)	// $B1&(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].west& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x-1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x-1][y] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x-1, y, south, west, weight);
+                    }
+            	}
+            }
+
+            if(x < MAZESIZE_X)	// $B:8(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].east& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x+1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x+1][y] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x+1, y, south, east, weight);
+                    }
+            	}
+            }
+            break;
+
+        case east:
+            if(x < MAZESIZE_X) 						//$BHO0O%A%'%C%/(B
+            {
+            	if ((wall[x][y].east& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    if(prev_dir != current_dir) { // $B8~$-$,JQ$o$C$?>l9g!"2sE>$N=E$_$+$iD>@~$N=E$_$K%j%;%C%H(B
+                        weight = fast_straight_cost;
+                    }
+            		if ((map_slalom[x][y] + weight) <= map_slalom[x+1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x+1][y] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x+1, y, east, east, weight);
+                    }
+            	}
+            }
+
+            if(y > 0)	// $B1&(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].south& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x][y-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x][y-1] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x, y-1, east, south, weight);
+                    }
+            	}
+            }
+
+            if(y < MAZESIZE_Y)	// $B:8(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].north& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x][y+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x][y+1] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x, y+1, east, north, weight);
+                    }
+            	}
+            }
+            break;
+
+        case west:
+            if(x > 0) 						//$BHO0O%A%'%C%/(B
+            {
+            	if ((wall[x][y].west& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    if(prev_dir != current_dir) { // $B8~$-$,JQ$o$C$?>l9g!"2sE>$N=E$_$+$iD>@~$N=E$_$K%j%;%C%H(B
+                        weight = fast_straight_cost;
+                    }
+            		if ((map_slalom[x][y] + weight) <= map_slalom[x-1][y])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x-1][y] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x-1, y, west, west, weight);
+                    }
+            	}
+            }
+
+            if(y < MAZESIZE_Y)	// $B1&(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].north& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x][y+1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x][y+1] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x, y+1, west, north, weight);
+                    }
+            	}
+            }
+
+            if(y > 0)	// $B:8(B90$BEY2sE>(B
+            {
+            	if ((wall[x][y].south& MASK_SEARCH) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+            	{
+                    weight = DAIKEI_END_TIME; // $B8~$-$r(B90$BEY2sE>$7$?$?$a!"(B45$BEY$N=E$_$K@_Dj(B
+            		if((map_slalom[x][y] + weight) <= map_slalom[x][y-1])				//$B$^$@CM$,F~$C$F$$$J$1$l$P(B
+            		{
+            			map_slalom[x][y-1] = map_slalom[x][y] + weight;	//$BCM$rBeF~(B
+                        prioritize_straight_cost_slalom_recursion(x, y-1, west, south, weight);
+                    }
+            	}
+            }
+            break;
+    }
+}
+
 
 
 
@@ -961,6 +1167,30 @@ void prioritize_straight_cost_recursion(short x, short y, t_direction prev_dir, 
 
 
 
+void make_map_recursion(int x, int y)	//$BJb?t%^%C%W$r:n@.$9$k(B
+{
+	init_map_fast_slalom(x,y);											//Map$B$r=i4|2=$9$k(B
+    
+    prioritize_straight_cost_slalom_recursion(x, y, north, north, fast_straight_cost);
+    prioritize_straight_cost_slalom_recursion(x, y, south, south, fast_straight_cost);
+    prioritize_straight_cost_slalom_recursion(x, y, east, east, fast_straight_cost);
+    prioritize_straight_cost_slalom_recursion(x, y, west, west, fast_straight_cost);
+    char str[6];
+    unsigned short score;
+    for(int j = 0; j <MAZESIZE_Y; j++)						//$BLBO)$NBg$-$5J,%k!<%W(B(x$B:BI8(B)
+    {
+    	for(int i = 0; i < MAZESIZE_X; i++)					//$BLBO)$NBg$-$5J,%k!<%W(B(y$B:BI8(B)
+    	{
+                score = map_slalom[i][j];
+
+                sprintf(str, "%u", score);
+                API_setText(i, j, str);
+        }
+    }
+}
+
+
+
 void make_map_naname_recursion(int x, int y)	//$BJb?t%^%C%W$r:n@.$9$k(B
 {
 
@@ -1053,6 +1283,94 @@ int get_priority(int x, int y, t_direction dir)	//$B$=$N%^%9$N>pJs$+$i!"M%@hEY$
 	return priority;							//$BM%@hEY$rJV$9(B
 	
 }
+
+
+
+int get_nextdir_slalom(int x, int y, t_direction *dir)	
+{
+	//$B%4!<%k:BI8(Bx,y$B$K8~$+$&>l9g!":#$I$A$i$K9T$/$Y$-$+$rH=CG$9$k!#(B
+	int little,priority,tmp_priority;								//$B:G>.$NCM$rC5$9$?$a$K;HMQ$9$kJQ?t(B
+ 
+	little = 59999;													//$B:G>.Jb?t$r(B255$BJb(B(map$B$,(Bunsigned char$B7?$J$N$G(B)$B$K@_Dj(B	
+
+	priority = 0;													//$BM%@hEY$N=i4|CM$O(B0
+	
+    if ((wall[mypos.x][mypos.y].north & MASK_SECOND) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+	{
+		tmp_priority = get_priority(mypos.x, mypos.y + 1, north);	//$BM%@hEY$r;;=P(B
+		if(map_slalom[mypos.x][mypos.y+1] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_slalom[mypos.x][mypos.y+1];						//$B$R$H$^$:KL$,Jb?t$,>.$5$$;v$K$9$k(B
+			*dir = north;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_slalom[mypos.x][mypos.y+1] == little)					//$BJb?t$,F1$8>l9g$OM%@hEY$+$iH=CG$9$k(B
+		{
+			if(priority < tmp_priority )							//$BM%@hEY$rI>2A(B
+			{
+				*dir = north;										//$BJ}8~$r99?7(B
+				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
+			}
+		}
+	}
+	
+    if ((wall[mypos.x][mypos.y].east& MASK_SECOND) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+	{
+		tmp_priority = get_priority(mypos.x + 1, mypos.y, east);	//$BM%@hEY$r;;=P(B
+		if(map_slalom[mypos.x + 1][mypos.y] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_slalom[mypos.x+1][mypos.y];						//$B$R$H$^$:El$,Jb?t$,>.$5$$;v$K$9$k(B
+			*dir = east;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_slalom[(mypos.x + 1)][mypos.y] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$+$iH=CG(B
+		{
+			if(priority < tmp_priority)								//$BM%@hEY$rI>2A(B
+			{
+				*dir = east;										//$BJ}8~$rJ]B8(B
+				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
+			}
+		}
+	}
+	
+    if ((wall[mypos.x][mypos.y].south& MASK_SECOND) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+	{
+		tmp_priority = get_priority(mypos.x, mypos.y - 1, south);	//$BM%@hEY$r;;=P(B
+		if(map_slalom[mypos.x][(mypos.y - 1)] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_slalom[mypos.x][(mypos.y-1)];						//$B$R$H$^$:Fn$,Jb?t$,>.$5$$;v$K$9$k(B
+			*dir = south;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_slalom[mypos.x][(mypos.y - 1)] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$GI>2A(B
+		{
+			if(priority < tmp_priority)								//$BM%@hEY$rI>2A(B
+			{
+				*dir = south;										//$BJ}8~$rJ]B8(B
+				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
+			}
+		}
+	}
+	
+    if ((wall[mypos.x][mypos.y].west& MASK_SECOND) == NOWALL)//$BJI$,$J$1$l$P(B(mask$B$N0UL#$O(Bstatic_parameters$B$r;2>H(B)
+	{
+		tmp_priority = get_priority(mypos.x - 1, mypos.y, west);	//$BM%@hEY$r;;=P(B
+		if(map_slalom[(mypos.x-1)][mypos.y] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
+		{
+			little = map_slalom[(mypos.x-1)][mypos.y];						//$B@>$,Jb?t$,>.$5$$(B
+			*dir = west;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+		else if(map_slalom[(mypos.x - 1)][mypos.y] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$GI>2A(B
+		{
+			*dir = west;											//$BJ}8~$rJ]B8(B
+			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
+		}
+	}
+
+	return ( (int)( ( 4 + *dir - mypos.dir) % 4 ) );				//$B$I$C$A$K8~$+$&$Y$-$+$rJV$9!#(B
+}
+
 
 
 
@@ -1566,7 +1884,7 @@ int fast_full_search_adachi_slalom(int startX, int endX, int startY, int endY)
 
 
 //$B%9%i%m!<%`Av9T$N:GC;7PO)%^%C%W$r:n@.(B
-void create_fast_run_slalom_map(int x, int y)
+void create_fast_run_default_map(int x, int y)
 {
 	t_direction glob_nextdir;
 	float straight_count = -0.5;
@@ -1620,6 +1938,7 @@ void create_fast_run_slalom_map(int x, int y)
 	}
 
 	while((mypos.x != x) || (mypos.y != y)){	//$B%4!<%k$9$k$^$G7+$jJV$9(B
+        API_setColor(mypos.x, mypos.y, color);
 		switch(get_nextdir(x,y,MASK_SECOND,&glob_nextdir))	//$B<!$K9T$/J}8~$rLa$jCM$H$9$k4X?t$r8F$V(B
 		{
 			case front:	//$BD>@~$r$^$H$a$FAv$k$h$&$K$9$k(B
@@ -1691,6 +2010,145 @@ void create_fast_run_slalom_map(int x, int y)
 
 		}
 	}
+    API_setColor(mypos.x, mypos.y, color);
+    shortest_route_action[action_id] = M_FRONT;
+    shortest_route_action_times[action_id] = straight_count + 0.5;
+    action_id++;
+    shortest_route_action[action_id] = M_REAR;
+}
+
+
+
+//$B%9%i%m!<%`Av9T$N:GC;7PO)%^%C%W$r:n@.(B
+void create_fast_run_slalom_map(int x, int y)
+{
+	t_direction glob_nextdir;
+	float straight_count = -0.5;
+    int action_id = 0;
+    shortest_route_action[action_id] = M_FRONT;
+    shortest_route_action_times[action_id] = straight_count;
+
+	//$B8=:_$N8~$-$+$i!"<!$K9T$/$Y$-J}8~$X8~$/(B
+	//switch(get_nextdir(x,y,MASK_SECOND,&glob_nextdir))	//$B<!$K9T$/J}8~$rLa$jCM$H$9$k4X?t$r8F$V(B
+	switch(get_nextdir_slalom(x,y,&glob_nextdir))	//$B<!$K9T$/J}8~$rLa$jCM$H$9$k4X?t$r8F$V(B
+	{
+		case front:
+			straight_count++;							//$BA08~$-$@$C$?>l9g$OD>@~$rAv$k5wN%$r?-$P$9(B
+			break;
+		
+		case right:										//$B1&$K8~$/(B
+			straight_count++;							//$BA08~$-$@$C$?>l9g$OD>@~$rAv$k5wN%$r?-$P$9(B
+			break;
+		
+		case left:										//$B:8$K8~$/(B
+			straight_count++;							//$BA08~$-$@$C$?>l9g$OD>@~$rAv$k5wN%$r?-$P$9(B
+			break;
+		
+		case rear:										//$B8e$m$K8~$/(B
+			straight_count++;							//$BA08~$-$@$C$?>l9g$OD>@~$rAv$k5wN%$r?-$P$9(B
+			break;
+	}
+
+    shortest_route_action[action_id] = M_FRONT;
+    shortest_route_action_times[action_id] = straight_count;
+	mypos.dir = glob_nextdir;							//$B<+J,$N8~$-$r99?7(B
+
+
+	//$B8~$$$?J}8~$K$h$C$F<+J,$N:BI8$r99?7$9$k(B
+	switch(mypos.dir)
+	{
+		case north:
+			mypos.y++;	//$BKL$r8~$$$?;~$O(BY$B:BI8$rA}$d$9(B
+			break;
+			
+		case east:
+			mypos.x++;	//$BEl$r8~$$$?;~$O(BX$B:BI8$rA}$d$9(B
+			break;
+			
+		case south:
+			mypos.y--;	//$BFn$r8~$$$?;~$O(BY$B:BI8$r8:$i$9(B
+			break;
+		
+		case west:
+			mypos.x--;	//$B@>$r8~$$$?$H$-$O(BX$B:BI8$r8:$i$9(B
+			break;
+	}
+
+	while((mypos.x != x) || (mypos.y != y)){	//$B%4!<%k$9$k$^$G7+$jJV$9(B
+        API_setColor(mypos.x, mypos.y, color);
+		//switch(get_nextdir(x,y,MASK_SECOND,&glob_nextdir))	//$B<!$K9T$/J}8~$rLa$jCM$H$9$k4X?t$r8F$V(B
+        switch(get_nextdir_slalom(x,y,&glob_nextdir))	//$B<!$K9T$/J}8~$rLa$jCM$H$9$k4X?t$r8F$V(B
+		{
+			case front:	//$BD>@~$r$^$H$a$FAv$k$h$&$K$9$k(B
+				straight_count += 1.0;
+				break;
+			
+			case right:
+		                if (straight_count > 0.0) {
+		                    //$BA0?J$rEPO?(B
+		                    shortest_route_action[action_id] = M_FRONT;
+		                    shortest_route_action_times[action_id] = straight_count;
+		                    action_id++;
+
+		                    //$B2sE>$rEPO?(B
+		                    shortest_route_action[action_id] = M_RIGHT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                    straight_count = 0.0;
+		                }
+		                else {
+		                    //$B2sE>$rEPO?(B
+		                    shortest_route_action[action_id] = M_RIGHT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                }
+				break;
+			
+			case left:
+		                if (straight_count > 0.0) {
+		                    //$BA0?J$rEPO?(B
+		                    shortest_route_action[action_id] = M_FRONT;
+		                    shortest_route_action_times[action_id] = straight_count;
+		                    action_id++;
+
+		                    //$B2sE>$rEPO?(B
+		                    shortest_route_action[action_id] = M_LEFT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                    straight_count = 0.0;
+		                }
+		                else {
+		                    //$B2sE>$rEPO?(B
+		                    shortest_route_action[action_id] = M_LEFT;
+		                    shortest_route_action_times[action_id] = 1;
+		                    action_id++;
+		                }
+		}
+	
+		mypos.dir = glob_nextdir;							//$B<+J,$N8~$-$r=$@5(B
+		
+		//$B8~$$$?J}8~$K$h$C$F<+J,$N:BI8$r99?7$9$k(B
+		switch(mypos.dir)
+		{
+			case north:
+				mypos.y++;	//$BKL$r8~$$$?;~$O(BY$B:BI8$rA}$d$9(B
+				break;
+				
+			case east:
+				mypos.x++;	//$BEl$r8~$$$?;~$O(BX$B:BI8$rA}$d$9(B
+				break;
+				
+			case south:
+				mypos.y--;	//$BFn$r8~$$$?;~$O(BY$B:BI8$r8:$i$9(B
+				break;
+			
+			case west:
+				mypos.x--;	//$B@>$r8~$$$?$H$-$O(BX$B:BI8$r8:$i$9(B
+				break;
+
+		}
+	}
+    API_setColor(mypos.x, mypos.y, color);
     shortest_route_action[action_id] = M_FRONT;
     shortest_route_action_times[action_id] = straight_count + 0.5;
     action_id++;
@@ -2285,9 +2743,14 @@ void convert_shortest_route_to_diagonal_route(void)
 }
 
 
-unsigned int calculate_fast_run_slalom_time_with_map(int x, int y)
+unsigned int calculate_fast_run_slalom_time_with_map(int x, int y, int mode)
 {
-    create_fast_run_slalom_map(x, y);
+    if(mode) {
+        make_map_recursion(GOAL_X, GOAL_Y);
+        create_fast_run_slalom_map(x, y);
+    } else {
+        create_fast_run_default_map(x, y);
+    }
     //$B0z?t$N:BI8(Bx,y$B$K8~$+$C$F:GC;Av9T$9$k(B
     unsigned int total_runtime = 0;
 	int action_id = 1;
@@ -2478,102 +2941,6 @@ unsigned int calculate_max_fast_run_diagonal_time_with_map(int x, int y)
 
 
 
-int get_nextdir_fast_run(int x, int y, int mask, t_direction *dir)	
-{
-	//$B%4!<%k:BI8(Bx,y$B$K8~$+$&>l9g!":#$I$A$i$K9T$/$Y$-$+$rH=CG$9$k!#(B
-	//$BC5:w!":GC;$N@Z$jBX$($N$?$a$N(Bmask$B$r;XDj!"(Bdir$B$OJ}3Q$r<($9(B
-	int little,priority,tmp_priority;								//$B:G>.$NCM$rC5$9$?$a$K;HMQ$9$kJQ?t(B
- 
-	make_map(x,y,mask);												//$BJb?t(BMap$B@8@.(B
-	//make_fast_run_map_with_run_time(x,y,mask);												//$BJb?t(BMap$B@8@.(B
-	little = 255;													//$B:G>.Jb?t$r(B255$BJb(B(map$B$,(Bunsigned char$B7?$J$N$G(B)$B$K@_Dj(B	
-
-	priority = 0;													//$BM%@hEY$N=i4|CM$O(B0
-	
-    //mask$B$N0UL#$O(Bstatic_parameter.h$B$r;2>H(B
-	if( (wall[mypos.x][mypos.y].north & mask) == NOWALL)			//$BKL$KJI$,$J$1$l$P(B
-	{
-		tmp_priority = get_priority(mypos.x, mypos.y + 1, north);	//$BM%@hEY$r;;=P(B
-		if(map[mypos.x][mypos.y+1] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
-		{
-			little = map[mypos.x][mypos.y+1];						//$B$R$H$^$:KL$,Jb?t$,>.$5$$;v$K$9$k(B
-			*dir = north;											//$BJ}8~$rJ]B8(B
-			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
-		}
-		else if(map[mypos.x][mypos.y+1] == little)					//$BJb?t$,F1$8>l9g$OM%@hEY$+$iH=CG$9$k(B
-		{
-			if(priority < tmp_priority )							//$BM%@hEY$rI>2A(B
-			{
-				*dir = north;										//$BJ}8~$r99?7(B
-				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
-			}
-		}
-	}
-	
-	if( (wall[mypos.x][mypos.y].east & mask) == NOWALL)				//$BEl$KJI$,$J$1$l$P(B
-	{
-		tmp_priority = get_priority(mypos.x + 1, mypos.y, east);	//$BM%@hEY$r;;=P(B
-		if(map[mypos.x + 1][mypos.y] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
-		{
-			little = map[mypos.x+1][mypos.y];						//$B$R$H$^$:El$,Jb?t$,>.$5$$;v$K$9$k(B
-			*dir = east;											//$BJ}8~$rJ]B8(B
-			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
-		}
-		else if(map[mypos.x + 1][mypos.y] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$+$iH=CG(B
-		{
-			if(priority < tmp_priority)								//$BM%@hEY$rI>2A(B
-			{
-				*dir = east;										//$BJ}8~$rJ]B8(B
-				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
-			}
-		}
-	}
-	
-	if( (wall[mypos.x][mypos.y].south & mask) == NOWALL)			//$BFn$KJI$,$J$1$l$P(B
-	{
-		tmp_priority = get_priority(mypos.x, mypos.y - 1, south);	//$BM%@hEY$r;;=P(B
-		if(map[mypos.x][mypos.y - 1] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
-		{
-			little = map[mypos.x][mypos.y-1];						//$B$R$H$^$:Fn$,Jb?t$,>.$5$$;v$K$9$k(B
-			*dir = south;											//$BJ}8~$rJ]B8(B
-			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
-		}
-		else if(map[mypos.x][mypos.y - 1] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$GI>2A(B
-		{
-			if(priority < tmp_priority)								//$BM%@hEY$rI>2A(B
-			{
-				*dir = south;										//$BJ}8~$rJ]B8(B
-				priority = tmp_priority;							//$BM%@hEY$rJ]B8(B
-			}
-		}
-	}
-	
-	if( (wall[mypos.x][mypos.y].west & mask) == NOWALL)				//$B@>$KJI$,$J$1$l$P(B
-	{
-		tmp_priority = get_priority(mypos.x - 1, mypos.y, west);	//$BM%@hEY$r;;=P(B
-		if(map[mypos.x-1][mypos.y] < little)						//$B0lHVJb?t$,>.$5$$J}8~$r8+$D$1$k(B
-		{
-			little = map[mypos.x-1][mypos.y];						//$B@>$,Jb?t$,>.$5$$(B
-			*dir = west;											//$BJ}8~$rJ]B8(B
-			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
-		}
-		else if(map[mypos.x - 1][mypos.y] == little)				//$BJb?t$,F1$8>l9g!"M%@hEY$GI>2A(B
-		{
-			*dir = west;											//$BJ}8~$rJ]B8(B
-			priority = tmp_priority;								//$BM%@hEY$rJ]B8(B
-		}
-	}
-
-    if(little == 255) {
-	unable_to_find_path_to_goal = 1;
-	return stop;
-    }
-
-	return ( (int)( ( 4 + *dir - mypos.dir) % 4 ) );				//$B$I$C$A$K8~$+$&$Y$-$+$rJV$9!#(B
-}
-
-
-
 void log(char* text) {
     fprintf(stderr, "%s\n", text);
     fflush(stderr);
@@ -2711,6 +3078,39 @@ int main(int argc, char* argv[]) {
     timer = calculate_max_fast_run_diagonal_time_with_map(GOAL_X, GOAL_Y);
     fprintf(stderr, "\n\nfifth total runtime: %u\n\n", timer);
     fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//$B:BI8$r=i4|2=(B
+	mypos.dir = north;								//$BJ}3Q$r=i4|2=(B
+    recusion_weight =10;
+    color = 'r';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
+    fprintf(stderr, "\n\nfast slalom1 total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//$B:BI8$r=i4|2=(B
+	mypos.dir = north;								//$BJ}3Q$r=i4|2=(B
+    recusion_weight =20;
+    color = 'r';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 1);
+    fprintf(stderr, "\n\nfast slalom2 total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//$B:BI8$r=i4|2=(B
+	mypos.dir = north;								//$BJ}3Q$r=i4|2=(B
+    recusion_weight =10;
+    color = 'r';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 0);
+    fprintf(stderr, "\n\nfast slalom default 1 total runtime: %u\n\n", timer);
+    fflush(stderr);
+
+	mypos.x = mypos.y = 0;							//$B:BI8$r=i4|2=(B
+	mypos.dir = north;								//$BJ}3Q$r=i4|2=(B
+    recusion_weight =20;
+    color = 'r';
+    timer = calculate_fast_run_slalom_time_with_map(GOAL_X, GOAL_Y, 0);
+    fprintf(stderr, "\n\nfast slalom default 2 total runtime: %u\n\n", timer);
+    fflush(stderr);
+
     /*
     // $B%3%9%H%^%C%W$rI=<((B
     char str[5];
